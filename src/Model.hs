@@ -4,6 +4,7 @@ module Model
     ( ApiKey
     , Name
     , PlaylistContent(..)
+    , Score
     , Tournament(..)
     , URL
     , VideoDetails(..)
@@ -15,6 +16,7 @@ import Control.Applicative
 
 type ApiKey = String
 type YoutubeId = String
+type Score = Rational
 
 data VideoDetails = VideoDetails { videoTitle :: String, videoId :: YoutubeId } deriving (Show)
 data PlaylistContent = PlaylistContent { videoDetails :: [VideoDetails] } deriving (Show)
