@@ -9,19 +9,19 @@ import Data.Maybe (fromJust)
 import Data.List (find)
 import Control.Monad (forM_)
 
-main :: IO ()
-main = listPlaylistItems apiKey uploadsPlaylistId >>= prettyPrintPlaylistContent
+import System.Environment (getEnv)
 
--- Configuration
--- Should be read from environment variables
-apiKey = "AIzaSyCec4oVXaalTcu5qC7JrAPAGzyaHtwRojU"
+main :: IO ()
+main = do
+  apiKey <- getEnv "API_KEY"
+  listPlaylistItems apiKey uploadsPlaylistId >>= prettyPrintPlaylistContent
+
 uploadsPlaylistId = "UUHmNTOzvZhZwaRJoioK0Mqw"
--- ftvChannelId = "UCHmNTOzvZhZwaRJoioK0Mqw"
---
 
 attemptMatching :: YoutubeId -> IO ()
 attemptMatching id =
   do
+    apiKey <- getEnv "API_KEY"
     tournaments <- fromJust <$> listTournaments
     videoDetails <- videoDetails <$> listPlaylistItems apiKey uploadsPlaylistId
     let video@(VideoDetails title _) = fromJust $ find ((== id) . videoId) videoDetails
