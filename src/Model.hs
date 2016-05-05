@@ -2,7 +2,10 @@
 
 module Model
     ( ApiKey
+    , Name
     , PlaylistContent(..)
+    , Tournament(..)
+    , URL
     , VideoDetails(..)
     , YoutubeId
     ) where
@@ -15,6 +18,10 @@ type YoutubeId = String
 
 data VideoDetails = VideoDetails { videoTitle :: String, videoId :: YoutubeId } deriving (Show)
 data PlaylistContent = PlaylistContent { videoDetails :: [VideoDetails] } deriving (Show)
+
+type Name = String
+type URL = String
+data Tournament = Tournament { tournamentName :: Name, tournamentURL :: URL } deriving (Show)
 
 instance FromJSON VideoDetails where
   parseJSON (Object object) = do
