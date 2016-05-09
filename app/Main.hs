@@ -7,7 +7,7 @@ import Matcher
 
 import Data.Maybe (fromJust)
 import Data.List (find)
-import Control.Monad (forM_)
+import Control.Monad (when, forM_)
 
 import System.Environment (getEnv)
 
@@ -18,26 +18,35 @@ main = do
 
 uploadsPlaylistId = "UUHmNTOzvZhZwaRJoioK0Mqw"
 
-attemptMatching :: YoutubeId -> IO ()
-attemptMatching id =
+loadData :: IO ([Tournament], PlaylistContent)
+loadData = do
+  apiKey <- getEnv "API_KEY"
+  tournaments <- fromJust <$> listTournaments
+  playlistContent <- listPlaylistItems apiKey uploadsPlaylistId
+  return (tournaments, playlistContent)
+
+attemptMatching :: ([Tournament], PlaylistContent) -> YoutubeId -> IO ()
+attemptMatching (tournaments, (PlaylistContent details)) id =
   do
-    apiKey <- getEnv "API_KEY"
-    tournaments <- fromJust <$> listTournaments
-    videoDetails <- videoDetails <$> listPlaylistItems apiKey uploadsPlaylistId
-    let video@(VideoDetails title _) = fromJust $ find ((== id) . videoId) videoDetails
-    putStrLn title
-    prettyPrint $ matchTournaments video tournaments
+    let video@(VideoDetails title _ description) = fromJust $ find ((== id) . videoId) details
+    let matching = matchTournaments video tournaments
+    when (not $ isPerfect matching) $ do
+      putStrLn title
+      prettyPrint matching
 
 matchings :: IO ()
-matchings = forM_ ids attemptMatching
-  where ids = [ "XiLdRr23FFw"
-              , "HNc61ZU3WT4"
-              , "Th9BihtgGzc"
-              , "X2E9VYP1Hwg"]
+matchings = do
+  allData@(_, playlist) <- loadData
+  let ids = map videoId $ videoDetails playlist
+  forM_ ids (attemptMatching allData)
 
-prettyPrint :: [(Score, Tournament)] -> IO ()
-prettyPrint = putStr . unlines . map prettyPrintScore
+prettyPrint :: Matching -> IO ()
+prettyPrint (Perfect (Tournament t _ _)) = putStrLn $ " PERFECT MATCH: " ++ t
+prettyPrint (Approx scores) = do
+  putStrLn " APPROX MATCH:"
+  putStr . unlines . map prettyPrintApproxScore $ scores
+prettyPrint NoMatch = putStrLn " NO MATCH."
 
-prettyPrintScore :: (Score, Tournament) -> String
-prettyPrintScore (s, (Tournament t _)) = " " ++ scoreAsPercenage s ++ " " ++ t
+prettyPrintApproxScore :: (Score, Tournament) -> String
+prettyPrintApproxScore (s, (Tournament t _ _)) = "  " ++ scoreAsPercenage s ++ " " ++ t
   where scoreAsPercenage s = (show $ truncate $ (fromRational s * 100 :: Float)) ++ "%"

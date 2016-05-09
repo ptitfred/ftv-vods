@@ -1,21 +1,25 @@
 module Model
     ( ApiKey
+    , Matching(..)
     , Name
     , PlaylistContent(..)
     , Score
+    , Scores
     , Tournament(..)
     , TournamentType(..)
     , URL
     , VideoDetails(..)
     , YoutubeId
+    , isPerfect
     , isPremier
     ) where
 
 type ApiKey = String
 type YoutubeId = String
 type Score = Rational
+type Scores = [(Score, Tournament)]
 
-data VideoDetails = VideoDetails { videoTitle :: String, videoId :: YoutubeId } deriving (Show)
+data VideoDetails = VideoDetails { videoTitle :: String, videoId :: YoutubeId, videoDescription :: String } deriving (Show)
 data PlaylistContent = PlaylistContent { videoDetails :: [VideoDetails] } deriving (Show)
 
 type Name = String
@@ -30,3 +34,6 @@ isPremier :: Tournament -> Bool
 isPremier (Tournament _ _ Premier) = True
 isPremier _ = False
 
+isPerfect :: Matching -> Bool
+isPerfect (Perfect _) = True
+isPerfect _ = False
