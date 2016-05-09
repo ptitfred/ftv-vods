@@ -1,11 +1,14 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Lib
     ( listPlaylistItems, prettyPrintPlaylistContent
     ) where
 
 import Model
+
+import Data.Aeson
 import Data.List (intercalate)
 import Network.HTTP.Simple
-import Data.Aeson (FromJSON)
 
 getJSON :: (FromJSON a) => String -> IO a
 getJSON url = parseRequest url >>= fmap getResponseBody . httpJSON
@@ -21,10 +24,21 @@ listPlaylistItems apiKey playlistId = getJSON (buildUrl url parameters)
 buildUrl :: String -> [(String, String)] -> String
 buildUrl url []         = url
 buildUrl url parameters = url ++ "?" ++ toParameters parameters
-  where toParameters = intercalate "&" . map toParameter
+  where toParameters :: [(String, String)] -> String
+        toParameters = intercalate "&" . map toParameter
+        toParameter :: (String, String) -> String
         toParameter (a, b) = a ++ "=" ++ b
 
 prettyPrintPlaylistContent :: PlaylistContent -> IO ()
 prettyPrintPlaylistContent (PlaylistContent videoDetails) =
   putStr . unlines . map showTitle $ videoDetails
-    where showTitle (VideoDetails title _) = title
+    where showTitle (VideoDetails title _ _) = title
+
+instance FromJSON VideoDetails where
+  parseJSON (Object object) = do
+    snippet        <- object .: "snippet"
+    contentDetails <- object .: "contentDetails"
+    VideoDetails <$> snippet .: "title" <*> contentDetails .: "videoId" <*> snippet .: "description"
+
+instance FromJSON PlaylistContent where
+  parseJSON (Object object) = PlaylistContent <$> object .: "items"

@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Model
     ( ApiKey
     , Name
@@ -12,9 +10,6 @@ module Model
     , YoutubeId
     , isPremier
     ) where
-
-import Data.Aeson
-import Control.Applicative
 
 type ApiKey = String
 type YoutubeId = String
@@ -29,15 +24,9 @@ data Tournament = Tournament { tournamentName :: Name, tournamentURL :: URL, tou
 
 data TournamentType = Premier | Standard deriving (Show)
 
+data Matching = Perfect Tournament | Approx Scores | NoMatch
+
 isPremier :: Tournament -> Bool
 isPremier (Tournament _ _ Premier) = True
 isPremier _ = False
 
-instance FromJSON VideoDetails where
-  parseJSON (Object object) = do
-    snippet        <- object .: "snippet"
-    contentDetails <- object .: "contentDetails"
-    VideoDetails <$> snippet .: "title" <*> contentDetails .: "videoId"
-
-instance FromJSON PlaylistContent where
-  parseJSON (Object object) = PlaylistContent <$> object .: "items"
