@@ -5,10 +5,9 @@ import Matcher
 import Model
 import Youtube
 
-import Data.Maybe (fromJust)
-import Data.List (find)
 import Control.Monad (when, forM_)
-
+import Data.Maybe (fromJust, isJust)
+import Data.List (find)
 import System.Environment (getEnv)
 
 main :: IO ()
@@ -18,27 +17,31 @@ main = do
 
 uploadsPlaylistId = "UUHmNTOzvZhZwaRJoioK0Mqw"
 
-loadData :: IO ([Tournament], PlaylistContent)
+loadData :: IO (Maybe ([Tournament], PlaylistContent))
 loadData = do
   apiKey <- getEnv "API_KEY"
-  tournaments <- fromJust <$> listTournaments
+  tournaments <- listTournaments
   playlistContent <- listPlaylistItems apiKey uploadsPlaylistId
-  return (tournaments, playlistContent)
+  return $ (,) <$> tournaments <*> Just playlistContent
 
 attemptMatching :: ([Tournament], PlaylistContent) -> YoutubeId -> IO ()
 attemptMatching (tournaments, (PlaylistContent details)) id =
   do
-    let video@(VideoDetails title _ description) = fromJust $ find ((== id) . videoId) details
-    let matching = matchTournaments video tournaments
-    when (not $ isPerfect matching) $ do
-      putStrLn title
-      prettyPrint matching
+    let someVideo = find ((== id) . videoId) details
+    when (isJust someVideo) $ do
+      let video@(VideoDetails title _ description) = fromJust someVideo
+      let matching = matchTournaments video tournaments
+      when (not $ isPerfect matching) $ do
+        putStrLn title
+        prettyPrint matching
 
 matchings :: IO ()
 matchings = do
-  allData@(_, playlist) <- loadData
-  let ids = map videoId $ videoDetails playlist
-  forM_ ids (attemptMatching allData)
+  allData <- loadData
+  when (isJust allData) $ do
+    let dataset@(_,playlist) = fromJust allData
+    let ids = map videoId $ videoDetails playlist
+    forM_ ids $ attemptMatching dataset
 
 prettyPrint :: Matching -> IO ()
 prettyPrint (Perfect (Tournament t _ _)) = putStrLn $ " PERFECT MATCH: " ++ t
