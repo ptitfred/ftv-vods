@@ -30,8 +30,8 @@ scoreTournament :: VideoDetails -> Tournament -> Maybe (Score, Tournament)
 scoreTournament video tournament = (\s -> (s, tournament)) <$> score tournamentType
   where Tournament name url tournamentType = tournament
         context = extractContext video
-        score Premier = matchDescription video url A.<|> scoreSentences context name
-        score Standard     = matchDescription video url
+        score Premier  = matchDescription video url A.<|> scoreSentences context name
+        score Standard = matchDescription video url
 
 matchDescription :: VideoDetails -> URL -> Maybe Score
 matchDescription video url = do

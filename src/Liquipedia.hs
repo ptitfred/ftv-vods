@@ -46,6 +46,6 @@ readText (LNode (PlainL t)) = T.unpack t
 
 getRDF :: TournamentType -> IO TriplesList
 getRDF tournamentType = fromEither <$> parseURL parser (url tournamentType)
-  where url Premier = fullURL "/dota2/index.php?title=Special:ExportRDF/Category:Premier_Tournaments&xmlmime=rdf"
+  where url Premier  = fullURL "/dota2/index.php?title=Special:ExportRDF/Category:Premier_Tournaments&xmlmime=rdf"
         url Standard = fullURL "/dota2/index.php?title=Special:ExportRDF/Category:Tournaments&xmlmime=rdf"
         parser = XmlParser Nothing Nothing

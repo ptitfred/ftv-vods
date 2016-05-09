@@ -23,8 +23,8 @@ uploadsPlaylistId = "UUHmNTOzvZhZwaRJoioK0Mqw"
 
 loadData :: IO (Maybe ([Tournament], PlaylistContent))
 loadData = do
-  apiKey <- getEnv "API_KEY"
-  tournaments <- listTournaments
+  apiKey          <- getEnv "API_KEY"
+  tournaments     <- listTournaments
   playlistContent <- listPlaylistItems apiKey uploadsPlaylistId
   return $ (,) <$> tournaments <*> Just playlistContent
 
