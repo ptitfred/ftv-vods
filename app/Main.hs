@@ -40,12 +40,21 @@ attemptMatching (tournaments, (PlaylistContent details)) id =
         prettyPrint matching
 
 prettyPrint :: Matching -> IO ()
-prettyPrint NoMatch = putStrLn " NO MATCH."
-prettyPrint (Perfect (Tournament t _ _)) = putStrLn $ " PERFECT MATCH: " ++ t
+prettyPrint NoMatch =
+  putStrLn " NO MATCH."
+prettyPrint (Perfect tournament) =
+  putStrLn $ " PERFECT MATCH: " ++ (tournamentName tournament)
 prettyPrint (Approx scores) = do
   putStrLn " APPROX MATCH:"
   putStr . unlines . map prettyPrintApproxScore $ scores
 
-prettyPrintApproxScore :: (Score, Tournament) -> String
-prettyPrintApproxScore (s, (Tournament t _ _)) = "  " ++ scoreAsPercenage s ++ " " ++ t
-  where scoreAsPercenage s = (show $ truncate $ (fromRational s * 100 :: Float)) ++ "%"
+prettyPrintApproxScore :: Scoring -> String
+prettyPrintApproxScore scoring = "  " ++ scoreAsPercentage s ++ " " ++ t
+  where s = ofScore scoring
+        t = tournamentName $ ofTournament scoring
+
+scoreAsPercentage :: Score -> String
+scoreAsPercentage score = (show $ truncate $ percents score) ++ "%"
+
+percents :: Score -> Float
+percents score = fromRational score * 100

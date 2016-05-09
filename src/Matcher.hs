@@ -15,23 +15,25 @@ matchTournaments video tournaments = analyze scores
   where scores = bestScores . map (scoreTournament video) $ tournaments
         bestScores = top5 . byScore . positives . map fromJust . filter isJust
         top5 = take 10
-        positives = filter ((>0).fst)
-        byScore = sortOn (negate.fst)
+        positives = filter ((>0).ofScore)
+        byScore = sortOn (negate.ofScore)
 
 analyze :: Scores -> Matching
 analyze [] = NoMatch
-analyze scores | perfectCount == 1 = Perfect (snd $ head perfects)
+analyze scores | perfectCount == 1 = Perfect (ofTournament $ head perfects)
                | perfectCount > 1  = Approx perfects
                | otherwise         = Approx scores
-  where perfects = filter (\(s, t) -> s == 1) scores
+  where perfects = filter (isPerfectScore.ofScore) scores
+        isPerfectScore score = score == 1
         perfectCount = length perfects
 
-scoreTournament :: VideoDetails -> Tournament -> Maybe (Score, Tournament)
-scoreTournament video tournament = (\s -> (s, tournament)) <$> score tournamentType
+scoreTournament :: VideoDetails -> Tournament -> Maybe Scoring
+scoreTournament video tournament = with tournament <$> score tournamentType
   where Tournament name url tournamentType = tournament
         context = extractContext video
         score Premier  = matchDescription video url A.<|> scoreSentences context name
         score Standard = matchDescription video url
+        with tournament score = (tournament, score)
 
 matchDescription :: VideoDetails -> URL -> Maybe Score
 matchDescription video url = do

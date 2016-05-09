@@ -5,6 +5,7 @@ module Model
     , PlaylistContent(..)
     , Score
     , Scores
+    , Scoring
     , Tournament(..)
     , TournamentType(..)
     , URL
@@ -12,12 +13,15 @@ module Model
     , YoutubeId
     , isPerfect
     , isPremier
+    , ofTournament
+    , ofScore
     ) where
 
 type ApiKey = String
 type YoutubeId = String
 type Score = Rational
-type Scores = [(Score, Tournament)]
+type Scoring = (Tournament, Score)
+type Scores = [Scoring]
 
 data VideoDetails = VideoDetails { videoTitle :: String, videoId :: YoutubeId, videoDescription :: String } deriving (Show)
 data PlaylistContent = PlaylistContent { videoDetails :: [VideoDetails] } deriving (Show)
@@ -37,3 +41,9 @@ isPremier _ = False
 isPerfect :: Matching -> Bool
 isPerfect (Perfect _) = True
 isPerfect _ = False
+
+ofTournament :: Scoring -> Tournament
+ofTournament = fst
+
+ofScore :: Scoring -> Score
+ofScore = snd
