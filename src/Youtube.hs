@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Lib
+module Youtube
     ( listPlaylistItems, prettyPrintPlaylistContent
     ) where
 

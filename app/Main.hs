@@ -1,9 +1,9 @@
 module Main where
 
-import Lib
-import Model
 import Liquipedia
 import Matcher
+import Model
+import Youtube
 
 import Data.Maybe (fromJust)
 import Data.List (find)

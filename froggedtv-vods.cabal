@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Lib, Model, Liquipedia, Matcher
+  exposed-modules:     Liquipedia, Matcher, Model, Youtube
   build-depends:       base >= 4.7 && < 5
                      , http-conduit
                      , aeson
