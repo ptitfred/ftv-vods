@@ -1,5 +1,5 @@
 module Liquipedia
-    ( listTournaments, lastTournaments
+    ( listTournaments
     ) where
 
 import Model
@@ -48,20 +48,3 @@ getRDF tournamentType = fromEither <$> parseURL parser (url tournamentType)
   where url Premier = fullURL "/dota2/index.php?title=Special:ExportRDF/Category:Premier_Tournaments&xmlmime=rdf"
         url Standard = fullURL "/dota2/index.php?title=Special:ExportRDF/Category:Tournaments&xmlmime=rdf"
         parser = XmlParser Nothing Nothing
-
--- For testing purposes
-lastTournaments :: Int -> IO ()
-lastTournaments n | n <= 0    = putStrLn "No tournament"
-lastTournaments n | otherwise = do
-  say n
-  tournaments <- listTournaments
-  prettyPrintTournaments $ take n <$> tournaments
-
-say :: Int -> IO ()
-say 1 = putStrLn "Last tournament"
-say n = putStrLn $ "Last " ++ (show n) ++ " tournaments"
-
-prettyPrintTournaments :: Maybe [Tournament] -> IO ()
-prettyPrintTournaments Nothing   = putStrLn "none"
-prettyPrintTournaments (Just ts) = putStr . unlines . map showName $ ts
-  where showName = tournamentName

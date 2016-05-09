@@ -12,9 +12,13 @@ import System.Environment (getEnv)
 
 main :: IO ()
 main = do
-  apiKey <- getEnv "API_KEY"
-  listPlaylistItems apiKey uploadsPlaylistId >>= prettyPrintPlaylistContent
+  allData <- loadData
+  when (isJust allData) $ do
+    let dataset@(_,playlist) = fromJust allData
+    let ids = map videoId $ videoDetails playlist
+    forM_ ids $ attemptMatching dataset
 
+uploadsPlaylistId :: YoutubeId
 uploadsPlaylistId = "UUHmNTOzvZhZwaRJoioK0Mqw"
 
 loadData :: IO (Maybe ([Tournament], PlaylistContent))
@@ -35,20 +39,12 @@ attemptMatching (tournaments, (PlaylistContent details)) id =
         putStrLn title
         prettyPrint matching
 
-matchings :: IO ()
-matchings = do
-  allData <- loadData
-  when (isJust allData) $ do
-    let dataset@(_,playlist) = fromJust allData
-    let ids = map videoId $ videoDetails playlist
-    forM_ ids $ attemptMatching dataset
-
 prettyPrint :: Matching -> IO ()
+prettyPrint NoMatch = putStrLn " NO MATCH."
 prettyPrint (Perfect (Tournament t _ _)) = putStrLn $ " PERFECT MATCH: " ++ t
 prettyPrint (Approx scores) = do
   putStrLn " APPROX MATCH:"
   putStr . unlines . map prettyPrintApproxScore $ scores
-prettyPrint NoMatch = putStrLn " NO MATCH."
 
 prettyPrintApproxScore :: (Score, Tournament) -> String
 prettyPrintApproxScore (s, (Tournament t _ _)) = "  " ++ scoreAsPercenage s ++ " " ++ t

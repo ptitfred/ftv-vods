@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Youtube
-    ( listPlaylistItems, prettyPrintPlaylistContent
+    ( listPlaylistItems
     ) where
 
 import Model
@@ -28,11 +28,6 @@ buildUrl url parameters = url ++ "?" ++ toParameters parameters
         toParameters = intercalate "&" . map toParameter
         toParameter :: (String, String) -> String
         toParameter (a, b) = a ++ "=" ++ b
-
-prettyPrintPlaylistContent :: PlaylistContent -> IO ()
-prettyPrintPlaylistContent (PlaylistContent videoDetails) =
-  putStr . unlines . map showTitle $ videoDetails
-    where showTitle (VideoDetails title _ _) = title
 
 instance FromJSON VideoDetails where
   parseJSON (Object object) = do
