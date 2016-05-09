@@ -3,9 +3,10 @@ module Liquipedia
     ) where
 
 import Model
+
+import Data.List (deleteFirstsBy)
 import Data.RDF
 import qualified Data.Text as T
-import Data.List (deleteFirstsBy)
 
 fullURL = (++) "http://wiki.teamliquid.net"
 

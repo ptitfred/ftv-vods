@@ -6,8 +6,8 @@ import Model
 import Youtube
 
 import Control.Monad (when, forM_)
-import Data.Maybe (fromJust, isJust)
 import Data.List (find)
+import Data.Maybe (fromJust, isJust)
 import System.Environment (getEnv)
 
 main :: IO ()

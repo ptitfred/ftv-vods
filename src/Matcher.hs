@@ -2,10 +2,11 @@ module Matcher
     ( matchTournaments
     ) where
 
+import Model
+
 import qualified Control.Applicative as A ((<|>))
 import Data.List (sortOn)
 import Data.Maybe (fromJust, isJust)
-import Model
 import Text.EditDistance
 import Text.Parsec
 
