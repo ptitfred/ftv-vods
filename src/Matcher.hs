@@ -38,7 +38,9 @@ scoreTournament video tournament = with tournament <$> score tournamentType
 matchDescription :: VideoDetails -> URL -> Maybe Score
 matchDescription video url = do
   someURL <- extractURL video
-  if url == someURL then return 1 else Nothing
+  if (url == someURL)
+  then return 1
+  else Nothing
 
 scoreSentences :: String -> String -> Maybe Score
 scoreSentences s1 s2 = Just $ matchingCount / (toRational $ length ws1)
@@ -54,14 +56,14 @@ closeEnough word = any ((<threshold) . levenshtein word)
 
 extractContext :: VideoDetails -> String
 extractContext video = fallback title $ parseContext title
-  where VideoDetails title _ _ = video
+  where title = videoTitle video
         fallback v = either (const v) id
 
 extractURL :: VideoDetails -> Maybe URL
-extractURL video = case parseURL description of
-   Right u -> Just u
-   Left _  -> Nothing
-  where VideoDetails _ _ description = video
+extractURL = toMaybe . parseURL . videoDescription
+
+toMaybe :: Either a b -> Maybe b
+toMaybe = either (const Nothing) Just
 
 context = char '[' *> many (noneOf "]") <* char ']'
 title = context <* many anyChar <* eof
@@ -75,4 +77,6 @@ parseURL input = parse urlExtractor input input
 urlExtractor = (eof >> return "") <|> url <|> (many (noneOf " \n") *> space *> urlExtractor)
 
 url = do
-  (++) <$> string "http://wiki.teamliquid.net/dota2/" <*> many (noneOf " \n")
+  base <- string "http://wiki.teamliquid.net/dota2/"
+  path <- many (noneOf " \n")
+  return (base ++ path)

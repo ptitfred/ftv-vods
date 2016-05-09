@@ -19,20 +19,24 @@ merge Nothing _ = Nothing
 merge premierTournaments allTournaments = fuse <$> premierTournaments <*> allTournaments
 
 fuse :: [Tournament] -> [Tournament] -> [Tournament]
-fuse premiers alls = premiers ++ deleteFirstsBy (\t1 t2 -> tournamentURL t1 == tournamentURL t2) alls premiers
+fuse premiers alls = premiers ++ nonPremiers
+  where nonPremiers = deleteFirstsBy (\t1 t2 -> tournamentURL t1 == tournamentURL t2) alls premiers
 
 getTournaments :: TournamentType -> IO (Maybe [Tournament])
 getTournaments tournamentType =
   readTournaments tournamentType <$> getRDF tournamentType
 
-readTournaments :: RDF rdf => TournamentType -> rdf -> Maybe [Tournament]
-readTournaments tournamentType graph =
-  Just $ map (searchTournament graph) nodes
+readTournaments :: RDF rdf => TournamentType -> Maybe rdf -> Maybe [Tournament]
+readTournaments _ Nothing = Nothing
+readTournaments tournamentType (Just graph) =
+  return $ map (readTournament tournamentType graph) nodes
     where nodes = map subjectOf $ query graph Nothing withType (category tournamentType)
-          searchTournament g n = Tournament (searchText g n) (searchURL g n) tournamentType
-          searchText g n = map unslash $ readText $ searchProperty "rdfs:label" g n
-          searchURL g n = readURL $ searchProperty "swivt:page" g n
-          searchProperty url g n = head $ map objectOf $ query g (Just n) (someUrl url) Nothing
+
+readTournament :: RDF rdf => TournamentType -> rdf -> Node -> Tournament
+readTournament tournamentType g n = Tournament (queryLabel g n) (queryURL g n) tournamentType
+  where queryLabel g n = map unslash $ readText $ searchProperty "rdfs:label" g n
+        queryURL g n = readURL $ searchProperty "swivt:page" g n
+        searchProperty url g n = head $ map objectOf $ query g (Just n) (someUrl url) Nothing
 
 withType :: Maybe Node
 withType = someUrl "rdf:type"
@@ -54,8 +58,8 @@ readURL (UNode t) = T.unpack t
 readText :: Node -> String
 readText (LNode (PlainL t)) = T.unpack t
 
-getRDF :: TournamentType -> IO TriplesList
-getRDF tournamentType = fromEither <$> parseURL parser (url tournamentType)
+getRDF :: TournamentType -> IO (Maybe TriplesList)
+getRDF tournamentType = (Just . fromEither) <$> parseURL parser (url tournamentType)
   where url Premier  = fullURL "/dota2/index.php?title=Special:ExportRDF/Category:Premier_Tournaments&xmlmime=rdf"
         url Standard = fullURL "/dota2/index.php?title=Special:ExportRDF/Category:Tournaments&xmlmime=rdf"
         parser = XmlParser Nothing Nothing
