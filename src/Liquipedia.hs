@@ -1,26 +1,53 @@
 module Liquipedia
-    ( Tournament(..)
-    , listTournaments, lastTournaments
+    ( listTournaments, lastTournaments
     ) where
 
 import Model
-import Text.HTML.Scalpel
+import Data.RDF
+import qualified Data.Text as T
+import Data.List (deleteFirstsBy)
 
 fullURL = (++) "http://wiki.teamliquid.net"
 
 listTournaments :: IO (Maybe [Tournament])
-listTournaments = scrapeURL url tournaments
-  where url = fullURL "/dota2/Portal:Tournaments"
+listTournaments = merge <$> (getTournaments Premier) <*> (getTournaments Standard)
 
-tournaments :: Scraper String [Tournament]
-tournaments = chroots selector tournament
-  where selector = "div" @: ["id" @= "mw-content-text"] // "table" // "ul" // "li"
+merge :: Maybe [Tournament] -> Maybe [Tournament] -> Maybe [Tournament]
+merge premierTournaments Nothing = premierTournaments
+merge Nothing _ = Nothing
+merge premierTournaments allTournaments = fuse <$> premierTournaments <*> allTournaments
 
-tournament :: Scraper String Tournament
-tournament = Tournament <$> text "a" <*> link
+fuse :: [Tournament] -> [Tournament] -> [Tournament]
+fuse premiers alls = premiers ++ deleteFirstsBy (\t1 t2 -> tournamentURL t1 == tournamentURL t2) alls premiers
 
-link :: Scraper String Model.URL
-link = fullURL <$> attr "href" "a"
+getTournaments :: TournamentType -> IO (Maybe [Tournament])
+getTournaments tournamentType = do
+  graph <- getRDF tournamentType
+  let nodes = map subjectOf $ query graph Nothing (someUrl "rdf:type") (someUrl $ category tournamentType)
+  return $ Just $ map (searchTournament graph) nodes
+  where someUrl = Just . unode . T.pack
+        category Premier = "&wiki;Category-3APremier_Tournaments"
+        category Standard = "&wiki;Category-3ATournaments"
+        searchTournament g n = Tournament (searchText g n) (searchURL g n) tournamentType
+        searchText g n = map unslash $ readText $ searchProperty "rdfs:label" g n
+        searchURL g n = readURL $ searchProperty "swivt:page" g n
+        searchProperty url g n = head $ map objectOf $ query g (Just n) (someUrl url) Nothing
+
+unslash :: Char -> Char
+unslash '/' = ' '
+unslash  c  =  c
+
+readURL :: Node -> Model.URL
+readURL (UNode t) = T.unpack t
+
+readText :: Node -> String
+readText (LNode (PlainL t)) = T.unpack t
+
+getRDF :: TournamentType -> IO TriplesList
+getRDF tournamentType = fromEither <$> parseURL parser (url tournamentType)
+  where url Premier = fullURL "/dota2/index.php?title=Special:ExportRDF/Category:Premier_Tournaments&xmlmime=rdf"
+        url Standard = fullURL "/dota2/index.php?title=Special:ExportRDF/Category:Tournaments&xmlmime=rdf"
+        parser = XmlParser Nothing Nothing
 
 -- For testing purposes
 lastTournaments :: Int -> IO ()
@@ -37,4 +64,4 @@ say n = putStrLn $ "Last " ++ (show n) ++ " tournaments"
 prettyPrintTournaments :: Maybe [Tournament] -> IO ()
 prettyPrintTournaments Nothing   = putStrLn "none"
 prettyPrintTournaments (Just ts) = putStr . unlines . map showName $ ts
-  where showName (Tournament name _) = name
+  where showName = tournamentName

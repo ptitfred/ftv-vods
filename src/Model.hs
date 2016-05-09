@@ -6,9 +6,11 @@ module Model
     , PlaylistContent(..)
     , Score
     , Tournament(..)
+    , TournamentType(..)
     , URL
     , VideoDetails(..)
     , YoutubeId
+    , isPremier
     ) where
 
 import Data.Aeson
@@ -23,7 +25,13 @@ data PlaylistContent = PlaylistContent { videoDetails :: [VideoDetails] } derivi
 
 type Name = String
 type URL = String
-data Tournament = Tournament { tournamentName :: Name, tournamentURL :: URL } deriving (Show)
+data Tournament = Tournament { tournamentName :: Name, tournamentURL :: URL, tournamentType :: TournamentType } deriving (Show)
+
+data TournamentType = Premier | Standard deriving (Show)
+
+isPremier :: Tournament -> Bool
+isPremier (Tournament _ _ Premier) = True
+isPremier _ = False
 
 instance FromJSON VideoDetails where
   parseJSON (Object object) = do
