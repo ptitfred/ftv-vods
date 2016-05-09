@@ -29,15 +29,14 @@ loadData = do
   return $ (,) <$> tournaments <*> Just playlistContent
 
 attemptMatching :: ([Tournament], PlaylistContent) -> YoutubeId -> IO ()
-attemptMatching (tournaments, (PlaylistContent details)) id =
-  do
-    let someVideo = find ((== id) . videoId) details
-    when (isJust someVideo) $ do
-      let video@(VideoDetails title _ description) = fromJust someVideo
-      let matching = matchTournaments video tournaments
-      when (not $ isPerfect matching) $ do
-        putStrLn title
-        prettyPrint matching
+attemptMatching (tournaments, (PlaylistContent details)) id = do
+  let someVideo = find ((== id) . videoId) details
+  when (isJust someVideo) $ do
+    let video@(VideoDetails title _ description) = fromJust someVideo
+    let matching = matchTournaments video tournaments
+    when (not $ isPerfect matching) $ do
+      putStrLn title
+      prettyPrint matching
 
 prettyPrint :: Matching -> IO ()
 prettyPrint NoMatch =
