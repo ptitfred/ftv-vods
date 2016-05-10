@@ -1,13 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Youtube
+module YouTube
     ( listPlaylistItems
     ) where
 
 import Model
 
 import Data.Aeson
-import Data.List (intercalate)
+import Data.Char (isAlphaNum)
+import Data.List (find, intercalate)
+import Data.List.Split (wordsBy)
+import Data.Maybe (catMaybes)
 import Network.HTTP.Simple
 
 getJSON :: (FromJSON a) => String -> IO a
@@ -33,7 +36,21 @@ instance FromJSON VideoDetails where
   parseJSON (Object object) = do
     snippet        <- object .: "snippet"
     contentDetails <- object .: "contentDetails"
-    VideoDetails <$> snippet .: "title" <*> contentDetails .: "videoId" <*> snippet .: "description"
+    title          <- snippet .: "title"
+    videoId        <- contentDetails .: "videoId"
+    description    <- snippet .: "description"
+    let casters = extractCasters description
+    return $ VideoDetails title videoId description casters
+
+extractCasters :: String -> [Caster]
+extractCasters description = catMaybes $ map nameToCaster $ filter (`elem` (concatMap casterPseudos casters)) $ tokenize description
+
+tokenize :: String -> [String]
+tokenize = wordsBy sep
+  where sep = not.isAlphaNum
+
+nameToCaster :: Name -> Maybe Caster
+nameToCaster name = find (isCaster name) casters
 
 instance FromJSON PlaylistContent where
   parseJSON (Object object) = PlaylistContent <$> object .: "items"

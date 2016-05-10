@@ -3,10 +3,10 @@ module Main where
 import Liquipedia
 import Matcher
 import Model
-import Youtube
+import YouTube
 
 import Control.Monad (when, forM_)
-import Data.List (find)
+import Data.List (find, intercalate)
 import Data.Maybe (fromJust, isJust)
 import System.Environment (getEnv)
 
@@ -14,9 +14,27 @@ main :: IO ()
 main = do
   allData <- loadData
   when (isJust allData) $ do
-    let dataset@(_,playlist) = fromJust allData
+    let dataset@(_, playlist) = fromJust allData
     let ids = map videoId $ videoDetails playlist
     forM_ ids $ attemptMatching dataset
+
+videosWithCasters :: IO ()
+videosWithCasters = do
+  apiKey <- getEnv "API_KEY"
+  videos <- videoDetails <$> listPlaylistItems apiKey uploadsPlaylistId
+  mapM_ videoWithCasters videos
+
+videoWithCasters :: VideoDetails -> IO ()
+videoWithCasters videoDetails = do
+  putStrLn $ videoTitle videoDetails
+  let casters = videoCasters videoDetails
+  if null casters
+  then do
+    putStrLn " No caster recognized:"
+    putStrLn $ unlines . map (" " ++) . lines $ videoDescription videoDetails
+  else do
+    let pseudos = intercalate ", " $ map casterPseudo casters
+    putStrLn $ " " ++ pseudos
 
 uploadsPlaylistId :: YoutubeId
 uploadsPlaylistId = "UUHmNTOzvZhZwaRJoioK0Mqw"
@@ -32,10 +50,10 @@ attemptMatching :: ([Tournament], PlaylistContent) -> YoutubeId -> IO ()
 attemptMatching (tournaments, (PlaylistContent details)) id = do
   let someVideo = find ((== id) . videoId) details
   when (isJust someVideo) $ do
-    let video@(VideoDetails title _ description) = fromJust someVideo
+    let video = fromJust someVideo
     let matching = matchTournaments video tournaments
     when (not $ isPerfect matching) $ do
-      putStrLn title
+      putStrLn $ videoTitle video
       prettyPrint matching
 
 prettyPrint :: Matching -> IO ()
