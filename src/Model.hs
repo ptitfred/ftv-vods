@@ -54,13 +54,15 @@ isCaster :: Name -> Caster -> Bool
 isCaster name caster = name `elem` casterPseudos caster
 
 casters :: [Caster]
-casters = [ Caster "YouYou"     ["Youyou"] Nothing
-          , Caster "LuCiqNo"    [] Nothing
-          , Caster "v0ja"       ["voja", "Voja"] Nothing
-          , Caster "Shiba"      [] Nothing
-          , Caster "Hugo"       [] Nothing
-          , Caster "Gourouf"    ["MrGourouf"] Nothing
-          , Caster "7uckingMad" ["7ckingMad"] Nothing
+casters = [ Caster "LuCiqNo"   []               Nothing
+          , Caster "Hugo"      []               Nothing
+          , Caster "v0ja"      ["voja", "Voja"] Nothing
+          , Caster "YouYou"    ["Youyou"]       Nothing
+          , Caster "Shiba"     []               Nothing
+          , Caster "Gourouf"   ["MrGourouf"]    Nothing
+          , Caster "7ckingMad" ["7uckingMad"]   Nothing
+          , Caster "Namax"     []               Nothing
+          , Caster "Darwyn"    []               Nothing
           ]
 
 isPremier :: Tournament -> Bool
