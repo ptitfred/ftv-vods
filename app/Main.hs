@@ -12,17 +12,19 @@ import System.Environment (getEnv)
 
 main :: IO ()
 main = do
-  allData <- loadData
+  allData <- loadData 200
   when (isJust allData) $ do
     let dataset@(_, playlist) = fromJust allData
     let ids = map videoId $ videoDetails playlist
     forM_ ids $ attemptMatching dataset
 
-videosWithCasters :: IO ()
-videosWithCasters = do
+videosWithCasters :: Int -> IO ()
+videosWithCasters count = do
   apiKey <- getEnv "API_KEY"
-  videos <- videoDetails <$> listPlaylistItems apiKey uploadsPlaylistId
+  videos <- videoDetails <$> listPlaylistItems apiKey uploadsPlaylistId count
   mapM_ videoWithCasters videos
+
+-- ========================================================================= --
 
 videoWithCasters :: VideoDetails -> IO ()
 videoWithCasters videoDetails = do
@@ -39,11 +41,11 @@ videoWithCasters videoDetails = do
 uploadsPlaylistId :: YoutubeId
 uploadsPlaylistId = "UUHmNTOzvZhZwaRJoioK0Mqw"
 
-loadData :: IO (Maybe ([Tournament], PlaylistContent))
-loadData = do
+loadData :: Int -> IO (Maybe ([Tournament], PlaylistContent))
+loadData count = do
   apiKey          <- getEnv "API_KEY"
   tournaments     <- listTournaments
-  playlistContent <- listPlaylistItems apiKey uploadsPlaylistId
+  playlistContent <- listPlaylistItems apiKey uploadsPlaylistId count
   return $ (,) <$> tournaments <*> Just playlistContent
 
 attemptMatching :: ([Tournament], PlaylistContent) -> YoutubeId -> IO ()

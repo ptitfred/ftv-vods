@@ -34,6 +34,10 @@ data VideoDetails = VideoDetails { videoTitle :: String
                                  } deriving (Show)
 data PlaylistContent = PlaylistContent { videoDetails :: [VideoDetails] } deriving (Show)
 
+instance Monoid PlaylistContent where
+  mempty        = PlaylistContent []
+  mappend p1 p2 = PlaylistContent (videoDetails p1 ++ videoDetails p2)
+
 type Name = String
 type URL = String
 data Tournament = Tournament { tournamentName :: Name, tournamentURL :: URL, tournamentType :: TournamentType } deriving (Show)
