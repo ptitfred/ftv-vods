@@ -17,6 +17,7 @@ module Model
     , isCaster
     , isPerfect
     , isPremier
+    , isStandard
     , ofScore
     , ofTournament
     ) where
@@ -57,6 +58,9 @@ data Tournament = Tournament { tournamentName :: Name
 isPremier :: Tournament -> Bool
 isPremier (Tournament _ _ Premier) = True
 isPremier _ = False
+
+isStandard :: Tournament -> Bool
+isStandard = not.isPremier
 
 {- PlaylistContent -----------------------------------------------------------}
 data PlaylistContent = PlaylistContent { videoDetails :: [VideoDetails]
