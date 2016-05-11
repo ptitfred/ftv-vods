@@ -8,15 +8,19 @@ import YouTube
 import Control.Monad (when, forM_)
 import Data.List (find, intercalate)
 import Data.Maybe (fromJust, isJust)
-import System.Environment (getEnv)
+import System.Environment (getArgs, getEnv)
 
 main :: IO ()
-main = do
-  allData <- loadData 200
+main = getArgs >>= dispatch
+
+dispatch :: [String] -> IO ()
+dispatch ("match" : count : _) | not $ null count = do
+  allData <- loadData $ read count
   when (isJust allData) $ do
     let dataset@(_, playlist) = fromJust allData
     let ids = map videoId $ videoDetails playlist
     forM_ ids $ attemptMatching dataset
+dispatch _ = putStrLn "Unknown action"
 
 videosWithCasters :: Int -> IO ()
 videosWithCasters count = do
@@ -54,9 +58,14 @@ attemptMatching (tournaments, (PlaylistContent details)) id = do
   when (isJust someVideo) $ do
     let video = fromJust someVideo
     let matching = matchTournaments video tournaments
-    when (not $ isPerfect matching) $ do
-      putStrLn $ videoTitle video
-      prettyPrint matching
+    when (isPerfect matching) $ do
+      putStr $ videoURL video
+      putStr " -> "
+      printURL matching
+
+printURL :: Matching -> IO ()
+printURL (Perfect tournament) = putStrLn (tournamentURL tournament)
+printURL _ = return ()
 
 prettyPrint :: Matching -> IO ()
 prettyPrint NoMatch =
