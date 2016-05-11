@@ -7,7 +7,7 @@ This is a Haskell project, built with [stack](http://haskellstack.org).
 To build:
 
 ```bash
-  stack build
+stack build
 ```
 
 ## Configuration
@@ -19,7 +19,8 @@ calling the binary.
 You could set it in config.sh which is ignored by git.
 
 ```bash
-  export API_KEY="My4PI-k3Y"
+# In config.sh
+export API_KEY="My4PI-k3Y"
 ```
 
 ## Matching
@@ -31,6 +32,11 @@ Example :
 Match the last 100 YouTube VODs
 
 ```bash
-  source ./config.sh
-  stack exec froggedtv-vods-exe match 100
+# In your shell
+
+# Once
+source ./config.sh
+
+# To match VODs to tournaments
+stack exec froggedtv-vods-exe match 100
 ```
