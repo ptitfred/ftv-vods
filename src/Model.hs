@@ -31,6 +31,7 @@ data VideoDetails = VideoDetails { videoTitle :: String
                                  , videoId :: YoutubeId
                                  , videoDescription :: String
                                  , videoCasters :: [Caster]
+                                 , videoURL :: URL
                                  } deriving (Show)
 data PlaylistContent = PlaylistContent { videoDetails :: [VideoDetails] } deriving (Show)
 
