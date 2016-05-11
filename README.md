@@ -32,11 +32,7 @@ Example :
 Match the last 100 YouTube VODs
 
 ```bash
-# In your shell
-
-# Once
 source ./config.sh
 
-# To match VODs to tournaments
-stack exec froggedtv-vods-exe match 100
+stack exec -- ftv-cli match 100
 ```
