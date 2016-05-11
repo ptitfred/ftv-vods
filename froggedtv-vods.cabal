@@ -45,4 +45,4 @@ test-suite froggedtv-vods-test
 
 source-repository head
   type:     git
-  location: https://github.com/ptitfred/froggedtv-vods
+  location: https://github.com/ptitfred/ftv-vods
