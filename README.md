@@ -52,3 +52,21 @@ stack exec -- ftv-cli match 100
 # From everywhere if binaries were installed in the PATH
 ftv-cli match 100
 ```
+
+## Casters listing
+
+Detect famous casters from the FroggedTV in YouTube videos descriptions.
+
+Example :
+
+Detect casters in the last 100 YouTube VODs
+
+```bash
+source ./config.sh
+
+# From the project root directory
+stack exec -- ftv-cli casters 100
+
+# From everywhere if binaries were installed in the PATH
+ftv-cli casters 100
+```
