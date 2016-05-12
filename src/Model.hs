@@ -51,7 +51,7 @@ isPerfect :: Matching -> Bool
 isPerfect (Perfect _) = True
 isPerfect _ = False
 
--- Tournament ----------------------------------------------------------------}
+{- Tournament ----------------------------------------------------------------}
 data Tournament = Tournament { tournamentName :: Name
                              , tournamentURL  :: URL
                              , tournamentType :: TournamentType
