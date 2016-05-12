@@ -14,13 +14,11 @@ main :: IO ()
 main = getArgs >>= dispatch
 
 dispatch :: [String] -> IO ()
-dispatch ("match" : count : _) | not $ null count = do
-  allData <- loadData $ read count
-  when (isJust allData) $ do
-    let dataset@(_, playlist) = fromJust allData
-    let ids = map videoId $ videoDetails playlist
-    forM_ ids $ attemptMatching dataset
+dispatch ("match"   : count : _) | not $ null count = match (read count)
+dispatch ("casters" : count : _) | not $ null count = videosWithCasters (read count)
 dispatch _ = putStrLn "Unknown action"
+
+-- ========================================================================= --
 
 videosWithCasters :: Int -> IO ()
 videosWithCasters count = do
@@ -28,7 +26,13 @@ videosWithCasters count = do
   videos <- videoDetails <$> listPlaylistItems apiKey uploadsPlaylistId count
   mapM_ videoWithCasters videos
 
--- ========================================================================= --
+match :: Int -> IO ()
+match count = do
+  allData <- loadData count
+  when (isJust allData) $ do
+    let dataset@(_, playlist) = fromJust allData
+    let ids = map videoId $ videoDetails playlist
+    forM_ ids $ attemptMatching dataset
 
 videoWithCasters :: VideoDetails -> IO ()
 videoWithCasters videoDetails = do
