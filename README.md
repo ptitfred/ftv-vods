@@ -1,15 +1,5 @@
 # FroggedTV videos analyzer
 
-## Build
-
-This is a Haskell project, built with [stack](http://haskellstack.org).
-
-To build:
-
-```bash
-stack build
-```
-
 ## Configuration
 
 The matcher consumes YouTube APIs which require an API key. This key is read
@@ -23,6 +13,28 @@ You could set it in config.sh which is ignored by git.
 export API_KEY="My4PI-k3Y"
 ```
 
+## Build
+
+This is a Haskell project, built with [stack](http://haskellstack.org).
+
+To build:
+
+```bash
+stack build
+```
+
+Or to install the binaries in your PATH (in ~/.local/bin on Unix platforms):
+
+```bash
+stack install
+```
+
+To develop:
+
+```bash
+stack (build|install) --file-watch
+```
+
 ## Matching
 
 Let you link YouTube videos to Dota2 wiki from Liquipedia.
@@ -34,5 +46,9 @@ Match the last 100 YouTube VODs
 ```bash
 source ./config.sh
 
+# From the project root directory
 stack exec -- ftv-cli match 100
+
+# From everywhere if binaries were installed in the PATH
+ftv-cli match 100
 ```
