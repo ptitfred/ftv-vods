@@ -22,6 +22,8 @@ module Model
     , ofTournament
     ) where
 
+import Data.Time.Clock (UTCTime)
+
 {- Some aliases --------------------------------------------------------------}
 type ApiKey = String
 type Name = String
@@ -63,8 +65,7 @@ isStandard :: Tournament -> Bool
 isStandard = not.isPremier
 
 {- PlaylistContent -----------------------------------------------------------}
-data PlaylistContent = PlaylistContent { videoDetails :: [VideoDetails]
-                                       } deriving (Show)
+data PlaylistContent = PlaylistContent { videoDetails :: [VideoDetails] }
 
 -- Implement Monoid to let concat queries
 instance Monoid PlaylistContent where
@@ -77,7 +78,8 @@ data VideoDetails = VideoDetails { videoTitle       :: String
                                  , videoDescription :: String
                                  , videoCasters     :: [Caster]
                                  , videoURL         :: URL
-                                 } deriving (Show)
+                                 , videoPublishDate :: UTCTime
+                                 }
 
 {- Caster --------------------------------------------------------------------}
 data Caster = Caster { casterPseudo     :: Name

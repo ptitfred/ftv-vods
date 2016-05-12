@@ -85,9 +85,10 @@ instance FromJSON VideoDetails where
     title          <- snippet .: "title"
     videoId        <- contentDetails .: "videoId"
     description    <- snippet .: "description"
+    publishDate    <- snippet .: "publishedAt"
     let casters = extractCasters description
     let url = "https://www.youtube.com/watch?v=" ++ videoId
-    return $ VideoDetails title videoId description casters url
+    return $ VideoDetails title videoId description casters url publishDate
 
 extractCasters :: String -> [Caster]
 extractCasters description = catMaybes $ map nameToCaster $ filter (`elem` (concatMap casterPseudos casters)) $ tokenize description
