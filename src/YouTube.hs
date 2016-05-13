@@ -15,34 +15,12 @@ import Data.Monoid ((<>))
 import qualified Data.Text as T (unpack)
 import Network.HTTP.Simple
 
-getJSON :: (FromJSON a) => String -> IO a
-getJSON url = getResponseBody <$> (parseRequest url >>= httpJSON)
-
 listPlaylistItems :: ApiKey -> YoutubeId -> Int -> IO PlaylistContent
-listPlaylistItems apiKey playlistId count = listPlaylistItems' Nothing apiKey playlistId batches
-  where batches = batchBy maxBatchSize count
+listPlaylistItems apiKey playlistId count = paginate handler count
+  where handler  = listPlaylistItemsAction apiKey playlistId
 
-listPlaylistItems' :: Maybe PageToken -> ApiKey -> YoutubeId -> [Int] -> IO PlaylistContent
-listPlaylistItems' token apiKey playlistId [] = return mempty
-listPlaylistItems' token apiKey playlistId (count: counts) = do
-  PlaylistResponse (content, nextToken) <- listPlaylistItemsAction token apiKey playlistId count
-  (content <>) <$> listPlaylistItems' nextToken apiKey playlistId counts
-
--- Set by YouTube API
-maxBatchSize :: Int
-maxBatchSize = 50
-
-batchBy :: Int -> Int -> [Int]
-batchBy batchSize = unfoldr (cutBatch batchSize)
-
-cutBatch :: Int -> Int -> Maybe (Int, Int)
-cutBatch batchSize count | count <= 0 = Nothing
-                         | otherwise  = Just (nextBatch, remaining)
-  where nextBatch = batchSize `min` count
-        remaining = count - nextBatch
-
-listPlaylistItemsAction :: Maybe PageToken -> ApiKey -> YoutubeId -> Int -> IO PlaylistResponse
-listPlaylistItemsAction pageToken apiKey playlistId count = getJSON (buildUrl url parameters)
+listPlaylistItemsAction :: ApiKey -> YoutubeId -> Int -> Maybe PageToken -> IO (YoutubeResponse PlaylistContent)
+listPlaylistItemsAction apiKey playlistId count pageToken = getJSON (buildUrl url parameters)
   where url = "https://www.googleapis.com/youtube/v3/playlistItems"
         parameters = [ ("part"      , "contentDetails,snippet")
                      , ("maxResults", show count              )
@@ -52,31 +30,6 @@ listPlaylistItemsAction pageToken apiKey playlistId count = getJSON (buildUrl ur
                      ]
         token Nothing = ""
         token (Just (PageToken t)) = t
-
-buildUrl :: String -> [(String, String)] -> String
-buildUrl url []         = url
-buildUrl url parameters = url ++ "?" ++ toParameters parameters
-  where toParameters :: [(String, String)] -> String
-        toParameters = intercalate "&" . map toParameter
-        toParameter :: (String, String) -> String
-        toParameter (a, b) = a ++ "=" ++ b
-
-newtype PageToken = PageToken String deriving (Show)
-
-newtype PlaylistResponse = PlaylistResponse (PlaylistContent, Maybe PageToken)
-
-instance FromJSON PlaylistResponse where
-  parseJSON (Object object) = do
-    playlistContent <- parseJSON (Object object)
-    pageToken       <- object .:? "nextPageToken"
-    return $ PlaylistResponse (playlistContent, avoidEmptyToken pageToken)
-
-avoidEmptyToken :: Maybe PageToken -> Maybe PageToken
-avoidEmptyToken (Just (PageToken "")) = Nothing
-avoidEmptyToken value = value
-
-instance FromJSON PageToken where
-  parseJSON (String s) = return $ PageToken $ T.unpack s
 
 instance FromJSON VideoDetails where
   parseJSON (Object object) = do
@@ -102,3 +55,58 @@ nameToCaster name = find (isCaster name) casters
 
 instance FromJSON PlaylistContent where
   parseJSON (Object object) = PlaylistContent <$> object .: "items"
+  parseJSON _               = return mempty
+
+{- Youtube API helpers -------------------------------------------------------}
+
+getJSON :: (FromJSON a) => String -> IO a
+getJSON url = getResponseBody <$> (parseRequest url >>= httpJSON)
+
+type PageSize = Int
+
+type PageHandler m = (PageSize -> Maybe PageToken -> IO (YoutubeResponse m))
+
+paginate :: Monoid m => PageHandler m -> PageSize -> IO m
+paginate handler count = paginate' handler batches Nothing
+  where batches = batchBy maxBatchSize count
+        maxBatchSize = 50 -- Set by YouTube API
+
+paginate' :: Monoid m => PageHandler m -> [PageSize] -> Maybe PageToken -> IO m
+paginate' handler [] _ = return mempty
+paginate' handler (count: counts) token = do
+  YoutubeResponse nextToken content <- handler count token
+  (content <>) <$> paginate' handler counts nextToken
+
+batchBy :: PageSize -> PageSize -> [PageSize]
+batchBy batchSize = unfoldr (cutBatch batchSize)
+
+cutBatch :: PageSize -> PageSize -> Maybe (PageSize, PageSize)
+cutBatch batchSize count | count <= 0 = Nothing
+                         | otherwise  = Just (nextBatch, remaining)
+  where nextBatch = batchSize `min` count
+        remaining = count - nextBatch
+
+newtype PageToken = PageToken String deriving (Show)
+
+buildUrl :: String -> [(String, String)] -> String
+buildUrl url []         = url
+buildUrl url parameters = url ++ "?" ++ toParameters parameters
+  where toParameters :: [(String, String)] -> String
+        toParameters = intercalate "&" . map toParameter
+        toParameter :: (String, String) -> String
+        toParameter (a, b) = a ++ "=" ++ b
+
+data YoutubeResponse a = YoutubeResponse (Maybe PageToken) a
+
+instance FromJSON a => FromJSON (YoutubeResponse a) where
+  parseJSON value@(Object object) = do
+    datum <- parseJSON value
+    token <- avoidEmptyToken <$> object .:? "nextPageToken"
+    return $ YoutubeResponse token datum
+
+avoidEmptyToken :: Maybe PageToken -> Maybe PageToken
+avoidEmptyToken (Just (PageToken "")) = Nothing
+avoidEmptyToken value = value
+
+instance FromJSON PageToken where
+  parseJSON (String s) = return $ PageToken $ T.unpack s
