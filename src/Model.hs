@@ -11,7 +11,7 @@ module Model
     , TournamentType(..)
     , URL
     , VideoDetails(..)
-    , YoutubeId
+    , YouTubeId
     , casterPseudos
     , casters
     , isCaster
@@ -30,7 +30,7 @@ type Name = String
 type Score = Rational
 type Scores = [Scoring]
 type URL = String
-type YoutubeId = String
+type YouTubeId = String
 
 {- Scoring -------------------------------------------------------------------}
 type Scoring = (Tournament, Score)
@@ -74,7 +74,7 @@ instance Monoid PlaylistContent where
 
 {- VideoDetails --------------------------------------------------------------}
 data VideoDetails = VideoDetails { videoTitle       :: String
-                                 , videoId          :: YoutubeId
+                                 , videoId          :: YouTubeId
                                  , videoDescription :: String
                                  , videoCasters     :: [Caster]
                                  , videoURL         :: URL

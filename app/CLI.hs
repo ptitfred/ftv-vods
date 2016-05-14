@@ -23,7 +23,7 @@ dispatch _ = putStrLn "Unknown action"
 videosWithCasters :: Int -> IO ()
 videosWithCasters count = do
   apiKey <- getEnv "API_KEY"
-  videos <- videoDetails <$> listPlaylistItems apiKey uploadsPlaylistId count
+  videos <- videoDetails <$> listPlaylist apiKey uploadsPlaylistId count
   mapM_ videoWithCasters videos
 
 match :: Int -> IO ()
@@ -46,17 +46,17 @@ videoWithCasters videoDetails = do
     let pseudos = intercalate ", " $ map casterPseudo casters
     putStrLn $ " " ++ pseudos
 
-uploadsPlaylistId :: YoutubeId
+uploadsPlaylistId :: YouTubeId
 uploadsPlaylistId = "UUHmNTOzvZhZwaRJoioK0Mqw"
 
 loadData :: Int -> IO (Maybe ([Tournament], PlaylistContent))
 loadData count = do
   apiKey          <- getEnv "API_KEY"
   tournaments     <- listTournaments
-  playlistContent <- listPlaylistItems apiKey uploadsPlaylistId count
+  playlistContent <- listPlaylist apiKey uploadsPlaylistId count
   return $ (,) <$> tournaments <*> Just playlistContent
 
-attemptMatching :: ([Tournament], PlaylistContent) -> YoutubeId -> IO ()
+attemptMatching :: ([Tournament], PlaylistContent) -> YouTubeId -> IO ()
 attemptMatching (tournaments, (PlaylistContent details)) id = do
   let someVideo = find ((== id) . videoId) details
   when (isJust someVideo) $ do
