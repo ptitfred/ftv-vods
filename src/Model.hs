@@ -1,17 +1,13 @@
 module Model
-    ( ApiKey
-    , Caster(..)
+    ( Caster(..)
     , Matching(..)
     , Name
-    , PlaylistContent(..)
     , Score
     , Scores
     , Scoring
     , Tournament(..)
     , TournamentType(..)
     , URL
-    , VideoDetails(..)
-    , YouTubeId
     , casterPseudos
     , isCaster
     , isPerfect
@@ -21,15 +17,11 @@ module Model
     , ofTournament
     ) where
 
-import Data.Time.Clock (UTCTime)
-
 {- Some aliases --------------------------------------------------------------}
-type ApiKey = String
 type Name = String
 type Score = Rational
 type Scores = [Scoring]
 type URL = String
-type YouTubeId = String
 
 {- Scoring -------------------------------------------------------------------}
 type Scoring = (Tournament, Score)
@@ -62,23 +54,6 @@ isPremier _ = False
 
 isStandard :: Tournament -> Bool
 isStandard = not.isPremier
-
-{- PlaylistContent -----------------------------------------------------------}
-data PlaylistContent = PlaylistContent { videoDetails :: [VideoDetails] }
-
--- Implement Monoid to let concat queries
-instance Monoid PlaylistContent where
-  mempty        = PlaylistContent []
-  mappend p1 p2 = PlaylistContent (videoDetails p1 ++ videoDetails p2)
-
-{- VideoDetails --------------------------------------------------------------}
-data VideoDetails = VideoDetails { videoTitle       :: String
-                                 , videoId          :: YouTubeId
-                                 , videoDescription :: String
-                                 , videoCasters     :: [Caster]
-                                 , videoURL         :: URL
-                                 , videoPublishDate :: UTCTime
-                                 }
 
 {- Caster --------------------------------------------------------------------}
 data Caster = Caster { casterPseudo     :: Name

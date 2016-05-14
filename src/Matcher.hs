@@ -3,6 +3,7 @@ module Matcher
     ) where
 
 import Model
+import YouTube
 
 import qualified Control.Applicative as A ((<|>))
 import Data.List (sortOn)
@@ -10,8 +11,8 @@ import Data.Maybe (fromJust, isJust)
 import Text.EditDistance
 import Text.Parsec
 
-matchTournaments :: VideoDetails -> [Tournament] -> Matching
-matchTournaments video tournaments = analyze scores
+matchTournaments :: [Tournament] -> Video -> Matching
+matchTournaments tournaments video = analyze scores
   where scores = bestScores . map (scoreTournament video) $ tournaments
         bestScores = top5 . byScore . positives . map fromJust . filter isJust
         top5 = take 10
@@ -27,15 +28,15 @@ analyze scores | perfectCount == 1 = Perfect (ofTournament $ head perfects)
         isPerfectScore score = score == 1
         perfectCount = length perfects
 
-scoreTournament :: VideoDetails -> Tournament -> Maybe Scoring
-scoreTournament video tournament = with tournament <$> score tournamentType
-  where Tournament name url tournamentType = tournament
+scoreTournament :: Video -> Tournament -> Maybe Scoring
+scoreTournament video tournament = with tournament <$> score (tournamentType tournament)
+  where Tournament name url _ = tournament
         context = extractContext video
         score Premier  = matchDescription video url A.<|> scoreSentences context name
         score Standard = matchDescription video url
-        with tournament score = (tournament, score)
+        with = (,)
 
-matchDescription :: VideoDetails -> URL -> Maybe Score
+matchDescription :: Video -> URL -> Maybe Score
 matchDescription video url = do
   someURL <- extractURL video
   if (url == someURL)
@@ -54,12 +55,12 @@ closeEnough word = any ((<threshold) . levenshtein word)
   where threshold = minimum [3, length word]
         levenshtein = levenshteinDistance defaultEditCosts
 
-extractContext :: VideoDetails -> String
+extractContext :: Video -> String
 extractContext video = fallback title $ parseContext title
   where title = videoTitle video
         fallback v = either (const v) id
 
-extractURL :: VideoDetails -> Maybe URL
+extractURL :: Video -> Maybe URL
 extractURL = toMaybe . parseURL . videoDescription
 
 toMaybe :: Either a b -> Maybe b

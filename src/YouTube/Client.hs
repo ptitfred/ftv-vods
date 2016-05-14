@@ -1,17 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module YouTube.Client
-    ( Page(..)
+    ( Credentials
+    , Page(..)
     , PageHandler
     , PageSize
     , Parameter
     , Parameters
     , Token
     , Response(..)
+    , apiKey
+    , getCredentials
     , mkUrl
     , get
     , paginate
-    , readToken
     ) where
 
 import Model (URL)
@@ -20,8 +22,10 @@ import Data.Aeson
 import Data.List (intercalate, unfoldr)
 import qualified Data.Text as T (unpack)
 import Network.HTTP.Simple hiding (Response)
+import System.Environment (getEnv)
 
 {- Types ---------------------------------------------------------------------}
+data Credentials = Credentials ApiKey OAuthClientId OAuthSecret
 type PageSize = Int
 data Token = Empty | Token String
 data Page = Page Token PageSize
@@ -34,12 +38,20 @@ type Parameters = [Parameter]
 type Parameter = (String, String)
 
 {- Functions -----------------------------------------------------------------}
+getCredentials :: IO Credentials
+getCredentials = Credentials <$> getEnv "API_KEY"
+                             <*> getEnv "OAUTH_CLIENT_ID"
+                             <*> getEnv "OAUTH_CLIENT_SECRET"
+
+apiKey :: Credentials -> String
+apiKey (Credentials key _ _) = key
+
 get :: (FromJSON a) => URL -> IO a
 get url = getResponseBody <$> (parseRequest url >>= httpJSON)
 
-readToken :: Token -> String
-readToken  Empty    = ""
-readToken (Token t) = t
+instance Show Token where
+  show  Empty    = ""
+  show (Token t) = t
 
 mkUrl :: URL -> Parameters -> URL
 mkUrl url []         = url
@@ -48,9 +60,13 @@ mkUrl url parameters = url ++ "?" ++ toParameters parameters
 paginate :: Monoid m => PageHandler m -> PageSize -> IO m
 paginate handler count = paginate' handler batches Empty
   where batches = batchBy maxBatchSize count
-        maxBatchSize = 5 -- Set by YouTube API
+        maxBatchSize = 50 -- Set by YouTube API
 
 {-----------------------------------------------------------------------------}
+type ApiKey = String
+type OAuthClientId = String
+type OAuthSecret = String
+
 mkToken :: String -> Token
 mkToken "" = Empty
 mkToken s  = Token s

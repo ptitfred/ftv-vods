@@ -8,7 +8,7 @@ import YouTube
 import Control.Monad (when, forM_)
 import Data.List (find, intercalate)
 import Data.Maybe (fromJust, isJust)
-import System.Environment (getArgs, getEnv)
+import System.Environment (getArgs)
 
 main :: IO ()
 main = getArgs >>= dispatch
@@ -21,20 +21,18 @@ dispatch _ = putStrLn "Unknown action"
 -- ========================================================================= --
 
 videosWithCasters :: Int -> IO ()
-videosWithCasters count = do
-  apiKey <- getEnv "API_KEY"
-  videos <- videoDetails <$> listPlaylist apiKey uploadsPlaylistId count
-  mapM_ videoWithCasters videos
+videosWithCasters count =
+  videos <$> listPlaylist uploadsPlaylistId count >>= mapM_ videoWithCasters
 
 match :: Int -> IO ()
 match count = do
   allData <- loadData count
   when (isJust allData) $ do
     let dataset@(_, playlist) = fromJust allData
-    let ids = map videoId $ videoDetails playlist
+    let ids = map videoId $ videos playlist
     forM_ ids $ attemptMatching dataset
 
-videoWithCasters :: VideoDetails -> IO ()
+videoWithCasters :: Video -> IO ()
 videoWithCasters videoDetails = do
   putStrLn $ videoTitle videoDetails
   let casters = videoCasters videoDetails
@@ -49,19 +47,18 @@ videoWithCasters videoDetails = do
 uploadsPlaylistId :: YouTubeId
 uploadsPlaylistId = "UUHmNTOzvZhZwaRJoioK0Mqw"
 
-loadData :: Int -> IO (Maybe ([Tournament], PlaylistContent))
+loadData :: Int -> IO (Maybe ([Tournament], Playlist))
 loadData count = do
-  apiKey          <- getEnv "API_KEY"
   tournaments     <- listTournaments
-  playlistContent <- listPlaylist apiKey uploadsPlaylistId count
+  playlistContent <- listPlaylist uploadsPlaylistId count
   return $ (,) <$> tournaments <*> Just playlistContent
 
-attemptMatching :: ([Tournament], PlaylistContent) -> YouTubeId -> IO ()
-attemptMatching (tournaments, (PlaylistContent details)) id = do
+attemptMatching :: ([Tournament], Playlist) -> YouTubeId -> IO ()
+attemptMatching (tournaments, (Playlist details)) id = do
   let someVideo = find ((== id) . videoId) details
   when (isJust someVideo) $ do
     let video = fromJust someVideo
-    let matching = matchTournaments video tournaments
+    let matching = matchTournaments tournaments video
     when (isPerfect matching) $ do
       putStr $ videoURL video
       putStr " -> "

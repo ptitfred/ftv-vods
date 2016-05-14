@@ -1,7 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module YouTube
-    ( listPlaylist
+    ( Credentials
+    , Playlist(..)
+    , Video(..)
+    , YouTubeId
+    , listPlaylist
     ) where
 
 import Helpers
@@ -11,21 +15,24 @@ import YouTube.Client
 import Data.Aeson
 import Data.Time.Clock (UTCTime)
 
-listPlaylist :: ApiKey -> YouTubeId -> Int -> IO PlaylistContent
-listPlaylist key playlistId = paginate (listPlaylistHandler key playlistId)
+type YouTubeId = String
 
-listPlaylistHandler :: ApiKey -> YouTubeId -> Page -> IO (Response PlaylistContent)
-listPlaylistHandler apiKey playlistId page = get (mkUrl url parameters)
-  where Page token count = page
-        url = "https://www.googleapis.com/youtube/v3/playlistItems"
-        parameters = [ ("part"      , "contentDetails,snippet")
-                     , ("maxResults", show count              )
-                     , ("playlistId", playlistId              )
-                     , ("key"       , apiKey                  )
-                     , ("pageToken" , readToken token         )
-                     ]
+data Playlist = Playlist { videos :: [Video] }
 
-instance FromJSON VideoDetails where
+-- Implement Monoid to let concat queries
+instance Monoid Playlist where
+  mempty        = Playlist []
+  mappend p1 p2 = Playlist (videos p1 ++ videos p2)
+
+data Video = Video { videoTitle :: String
+                   , videoId          :: YouTubeId
+                   , videoDescription :: String
+                   , videoCasters     :: [Caster]
+                   , videoURL         :: URL
+                   , videoPublishDate :: UTCTime
+                   }
+
+instance FromJSON Video where
   parseJSON (Object object) = do
     snippet        <- object .: "snippet"
     contentDetails <- object .: "contentDetails"
@@ -46,12 +53,27 @@ mainCasters = [ Caster "LuCiqNo"   []               Nothing
               , Caster "Darwyn"    []               Nothing
               ]
 
-mkVideoDetails :: String -> YouTubeId -> String -> UTCTime -> VideoDetails
-mkVideoDetails title videoId description publishDate =
-  VideoDetails title videoId description casters url publishDate
+mkVideoDetails :: String -> YouTubeId -> String -> UTCTime -> Video
+mkVideoDetails title vid description publishDate =
+  Video title vid description casters url publishDate
     where casters = extractCasters mainCasters description
-          url = "https://www.youtube.com/watch?v=" ++ videoId
+          url = "https://www.youtube.com/watch?v=" ++ vid
 
-instance FromJSON PlaylistContent where
-  parseJSON (Object object) = PlaylistContent <$> object .: "items"
-  parseJSON _               = return mempty
+listPlaylist :: YouTubeId -> Int -> IO Playlist
+listPlaylist playlistId count = do
+  credentials <- getCredentials
+  paginate (listPlaylistHandler credentials playlistId) count
+
+listPlaylistHandler :: Credentials -> YouTubeId -> Page -> IO (Response Playlist)
+listPlaylistHandler credentials playlistId page = get (mkUrl url parameters)
+  where Page token count = page
+        url = "https://www.googleapis.com/youtube/v3/playlistItems"
+        parameters = [ ("part"      , "contentDetails,snippet")
+                     , ("maxResults", show count              )
+                     , ("pageToken" , show token              )
+                     , ("playlistId", playlistId              )
+                     , ("key"       , apiKey credentials      )
+                     ]
+
+instance FromJSON Playlist where
+  parseJSON (Object object) = Playlist <$> object .: "items"
