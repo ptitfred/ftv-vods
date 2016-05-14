@@ -2,12 +2,12 @@ name:                froggedtv-vods
 version:             0.1.0.0
 synopsis:            Initial project template from stack
 description:         Please see README.md
-homepage:            https://github.com/githubuser/froggedtv-vods#readme
+homepage:            https://github.com/ptitfred/ftv-vods#readme
 license:             BSD3
 license-file:        LICENSE
-author:              Author name here
+author:              Frédéric Menou
 maintainer:          example@example.com
-copyright:           2016 Author name here
+copyright:           2016 Frédéric Menou
 category:            Web
 build-type:          Simple
 -- extra-source-files:
@@ -16,11 +16,11 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Liquipedia
+                     , Helpers
                      , Matcher
                      , Model
                      , YouTube
   other-modules:       YouTube.Client
-                     , Helpers
   build-depends:       base >= 4.7 && < 5
                      , http-conduit
                      , aeson
@@ -46,6 +46,7 @@ test-suite froggedtv-vods-test
   main-is:             Spec.hs
   build-depends:       base
                      , froggedtv-vods
+                     , QuickCheck
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 

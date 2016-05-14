@@ -34,10 +34,22 @@ instance FromJSON VideoDetails where
                    <*> snippet .: "description"
                    <*> snippet .: "publishedAt"
 
+mainCasters :: [Caster]
+mainCasters = [ Caster "LuCiqNo"   []               Nothing
+              , Caster "Hugo"      []               Nothing
+              , Caster "v0ja"      ["voja", "Voja"] Nothing
+              , Caster "YouYou"    ["Youyou"]       Nothing
+              , Caster "Shiba"     []               Nothing
+              , Caster "Gourouf"   ["MrGourouf"]    Nothing
+              , Caster "7ckingMad" ["7uckingMad"]   Nothing
+              , Caster "Namax"     []               Nothing
+              , Caster "Darwyn"    []               Nothing
+              ]
+
 mkVideoDetails :: String -> YouTubeId -> String -> UTCTime -> VideoDetails
 mkVideoDetails title videoId description publishDate =
   VideoDetails title videoId description casters url publishDate
-    where casters = extractCasters description
+    where casters = extractCasters mainCasters description
           url = "https://www.youtube.com/watch?v=" ++ videoId
 
 instance FromJSON PlaylistContent where

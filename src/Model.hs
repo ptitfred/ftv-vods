@@ -13,7 +13,6 @@ module Model
     , VideoDetails(..)
     , YouTubeId
     , casterPseudos
-    , casters
     , isCaster
     , isPerfect
     , isPremier
@@ -92,15 +91,3 @@ casterPseudos caster = casterPseudo caster : casterAliases caster
 
 isCaster :: Name -> Caster -> Bool
 isCaster name caster = name `elem` casterPseudos caster
-
-casters :: [Caster]
-casters = [ Caster "LuCiqNo"   []               Nothing
-          , Caster "Hugo"      []               Nothing
-          , Caster "v0ja"      ["voja", "Voja"] Nothing
-          , Caster "YouYou"    ["Youyou"]       Nothing
-          , Caster "Shiba"     []               Nothing
-          , Caster "Gourouf"   ["MrGourouf"]    Nothing
-          , Caster "7ckingMad" ["7uckingMad"]   Nothing
-          , Caster "Namax"     []               Nothing
-          , Caster "Darwyn"    []               Nothing
-          ]
