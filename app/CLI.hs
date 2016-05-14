@@ -5,41 +5,51 @@ import Matcher
 import Model
 import YouTube
 
-import Control.Monad (when, forM_)
-import Data.List (find, intercalate)
-import Data.Maybe (fromJust, isJust)
+import Control.Monad (mzero)
+import Data.List (intercalate)
 import System.Environment (getArgs)
 
 main :: IO ()
 main = getArgs >>= dispatch
 
 dispatch :: [String] -> IO ()
-dispatch ("match"   : count : _) | not $ null count = match (read count)
-dispatch ("casters" : count : _) | not $ null count = videosWithCasters (read count)
+dispatch ("casters" : count : _) | present count = videosWithCasters (read count)
+dispatch ("match"   : count : _) | present count = match (read count)
 dispatch _ = putStrLn "Unknown action"
 
--- ========================================================================= --
+present :: String -> Bool
+present = not.null
 
 videosWithCasters :: Int -> IO ()
 videosWithCasters count =
   videos <$> listPlaylist uploadsPlaylistId count >>= mapM_ videoWithCasters
 
 match :: Int -> IO ()
-match count = do
-  allData <- loadData count
-  when (isJust allData) $ do
-    let dataset@(_, playlist) = fromJust allData
-    let ids = map videoId $ videos playlist
-    forM_ ids $ attemptMatching dataset
+match count = getDataset count >>= printMatchings
+
+printMatchings :: Maybe Dataset -> IO ()
+printMatchings (Just dataset) = mapM_ printMatching (computeMatchings dataset)
+printMatchings  Nothing       = mzero
+
+computeMatchings :: Dataset -> [(Video, Matching)]
+computeMatchings (tournaments, playlist) = map match' (videos playlist)
+  where match' v = (v, matchTournaments tournaments v)
+
+printMatching :: (Video, Matching) -> IO ()
+printMatching (video, (Perfect tournament)) = do
+  putStr $ videoURL video
+  putStr " -> "
+  putStrLn $ tournamentURL tournament
+printMatching _ = mzero
 
 videoWithCasters :: Video -> IO ()
-videoWithCasters videoDetails = do
-  putStrLn $ videoTitle videoDetails
-  let casters = videoCasters videoDetails
+videoWithCasters video = do
+  putStrLn $ videoTitle video
+  let casters = videoCasters video
   if null casters
   then do
     putStrLn " No caster recognized:"
-    putStrLn $ unlines . map (" " ++) . lines $ videoDescription videoDetails
+    putStrLn $ unlines . map (" " ++) . lines $ videoDescription video
   else do
     let pseudos = intercalate ", " $ map casterPseudo casters
     putStrLn $ " " ++ pseudos
@@ -47,44 +57,10 @@ videoWithCasters videoDetails = do
 uploadsPlaylistId :: YouTubeId
 uploadsPlaylistId = "UUHmNTOzvZhZwaRJoioK0Mqw"
 
-loadData :: Int -> IO (Maybe ([Tournament], Playlist))
-loadData count = do
+type Dataset = ([Tournament], Playlist)
+
+getDataset :: Int -> IO (Maybe Dataset)
+getDataset count = do
   tournaments     <- listTournaments
-  playlistContent <- listPlaylist uploadsPlaylistId count
-  return $ (,) <$> tournaments <*> Just playlistContent
-
-attemptMatching :: ([Tournament], Playlist) -> YouTubeId -> IO ()
-attemptMatching (tournaments, (Playlist details)) yid = do
-  let someVideo = find ((== yid) . videoId) details
-  when (isJust someVideo) $ do
-    let video = fromJust someVideo
-    let matching = matchTournaments tournaments video
-    when (isPerfect matching) $ do
-      putStr $ videoURL video
-      putStr " -> "
-      printURL matching
-
-printURL :: Matching -> IO ()
-printURL (Perfect tournament) = putStrLn (tournamentURL tournament)
-printURL _ = return ()
-
-prettyPrint :: Matching -> IO ()
-prettyPrint NoMatch =
-  putStrLn " NO MATCH."
-prettyPrint (Perfect tournament) =
-  putStrLn $ " PERFECT MATCH: " ++ (tournamentName tournament)
-prettyPrint (Approx scores) = do
-  putStrLn " APPROX MATCH:"
-  putStr . unlines . map prettyPrintApproxScore $ scores
-
-prettyPrintApproxScore :: Scoring -> String
-prettyPrintApproxScore scoring = "  " ++ scoreAsPercentage s ++ " " ++ t
-  where s = ofScore scoring
-        t = tournamentName $ ofTournament scoring
-
-scoreAsPercentage :: Score -> String
-scoreAsPercentage score = show p ++ "%"
-  where p = truncate $ percents score :: Integer
-
-percents :: Score -> Float
-percents score = fromRational score * 100
+  playlistContent <- pure <$> listPlaylist uploadsPlaylistId count
+  return $ (,) <$> tournaments <*> playlistContent
