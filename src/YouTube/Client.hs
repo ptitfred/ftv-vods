@@ -18,7 +18,8 @@ module YouTube.Client
 
 import Model (URL)
 
-import Data.Aeson
+import Data.Aeson hiding (object)
+import Data.Aeson.Types (typeMismatch)
 import Data.List (intercalate, unfoldr)
 import qualified Data.Text as T (unpack)
 import Network.HTTP.Simple hiding (Response)
@@ -78,7 +79,7 @@ toParameter :: Parameter -> String
 toParameter (a, b) = a ++ "=" ++ b
 
 paginate' :: Monoid m => PageHandler m -> [PageSize] -> Token -> IO m
-paginate' handler [] _ = return mempty
+paginate' _ [] _ = return mempty
 paginate' handler (count: counts) token = do
   Response nextToken content <- handler (Page token count)
   mappend content <$> paginate' handler counts nextToken
@@ -92,11 +93,13 @@ cutBatch batchSize count | count <= 0 = Nothing
   where nextBatch = batchSize `min` count
         remaining = count - nextBatch
 
-instance FromJSON a => FromJSON (Response a) where
+instance (FromJSON a) => FromJSON (Response a) where
   parseJSON value@(Object object) = do
     datum <- parseJSON value
     token <- object .: "nextPageToken"
     return $ Response token datum
+  parseJSON invalid = typeMismatch "Response" invalid
 
 instance FromJSON Token where
   parseJSON (String s) = return $ mkToken $ T.unpack s
+  parseJSON invalid = typeMismatch "Token" invalid

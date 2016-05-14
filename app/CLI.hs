@@ -54,8 +54,8 @@ loadData count = do
   return $ (,) <$> tournaments <*> Just playlistContent
 
 attemptMatching :: ([Tournament], Playlist) -> YouTubeId -> IO ()
-attemptMatching (tournaments, (Playlist details)) id = do
-  let someVideo = find ((== id) . videoId) details
+attemptMatching (tournaments, (Playlist details)) yid = do
+  let someVideo = find ((== yid) . videoId) details
   when (isJust someVideo) $ do
     let video = fromJust someVideo
     let matching = matchTournaments tournaments video
@@ -83,7 +83,8 @@ prettyPrintApproxScore scoring = "  " ++ scoreAsPercentage s ++ " " ++ t
         t = tournamentName $ ofTournament scoring
 
 scoreAsPercentage :: Score -> String
-scoreAsPercentage score = (show $ truncate $ percents score) ++ "%"
+scoreAsPercentage score = show p ++ "%"
+  where p = truncate $ percents score :: Integer
 
 percents :: Score -> Float
 percents score = fromRational score * 100

@@ -48,7 +48,7 @@ scoreSentences s1 s2 = Just $ matchingCount / (toRational $ length ws1)
   where ws1 = words s1
         ws2 = words s2
         matchingCount = toRational $ length $ filter snd $ map (matching ws2) ws1
-        matching words w = (w, closeEnough w words)
+        matching ws w = (w, closeEnough w ws)
 
 closeEnough :: String -> [String] -> Bool
 closeEnough word = any ((<threshold) . levenshtein word)
@@ -66,18 +66,15 @@ extractURL = toMaybe . parseURL . videoDescription
 toMaybe :: Either a b -> Maybe b
 toMaybe = either (const Nothing) Just
 
-context = char '[' *> many (noneOf "]") <* char ']'
-title = context <* many anyChar <* eof
-
 parseContext :: String -> Either ParseError String
 parseContext input = parse title input input
+  where title = context <* many anyChar <* eof
+        context = char '[' *> many (noneOf "]") <* char ']'
 
 parseURL :: String -> Either ParseError URL
 parseURL input = parse urlExtractor input input
-
-urlExtractor = (eof >> return "") <|> url <|> (many (noneOf " \n") *> space *> urlExtractor)
-
-url = do
-  base <- string "http://wiki.teamliquid.net/dota2/"
-  path <- many (noneOf " \n")
-  return (base ++ path)
+  where urlExtractor = (eof >> return "") <|> urlParser <|> (many (noneOf " \n") *> space *> urlExtractor)
+        urlParser = do
+          base <- string "http://wiki.teamliquid.net/dota2/"
+          path <- many (noneOf " \n")
+          return (base ++ path)

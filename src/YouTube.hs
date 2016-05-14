@@ -12,7 +12,8 @@ import Helpers
 import Model
 import YouTube.Client
 
-import Data.Aeson
+import Data.Aeson hiding (object)
+import Data.Aeson.Types (typeMismatch)
 import Data.Time.Clock (UTCTime)
 
 type YouTubeId = String
@@ -40,6 +41,7 @@ instance FromJSON Video where
                    <*> contentDetails .: "videoId"
                    <*> snippet .: "description"
                    <*> snippet .: "publishedAt"
+  parseJSON invalid = typeMismatch "Video" invalid
 
 mainCasters :: [Caster]
 mainCasters = [ Caster "LuCiqNo"   []               Nothing
@@ -77,3 +79,4 @@ listPlaylistHandler credentials playlistId page = get (mkUrl url parameters)
 
 instance FromJSON Playlist where
   parseJSON (Object object) = Playlist <$> object .: "items"
+  parseJSON invalid = typeMismatch "Playlist" invalid
