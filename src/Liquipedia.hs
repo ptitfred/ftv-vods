@@ -62,6 +62,6 @@ readText _ = ""
 
 getRDF :: TournamentType -> IO (Maybe TriplesList)
 getRDF t = (Just . fromEither) <$> parseURL parser (url t)
-  where url Premier  = fullURL "/dota2/index.php?title=Special:ExportRDF/Category:Premier_Tournaments&xmlmime=rdf"
-        url Standard = fullURL "/dota2/index.php?title=Special:ExportRDF/Category:Tournaments&xmlmime=rdf"
+  where url Premier  = fullURL "/dota2/Special:ExportRDF/Category:Premier_Tournaments"
+        url Standard = fullURL "/dota2/Special:ExportRDF/Category:Tournaments"
         parser = XmlParser Nothing Nothing
