@@ -9,8 +9,10 @@ calling the binary.
 You could set it in config.sh which is ignored by git.
 
 ```bash
-# In config.sh
+# In config.sh (those are fake ids obviously)
 export API_KEY="My4PI-k3Y"
+export OAUTH_CLIENT_ID="1232451531-lzlkrjezlrkjzelehlkhnlkhlzekhflh.apps.googleusercontent.com"
+export OAUTH_CLIENT_SECRET="eoizeujzZLRTJzLETkeREAja"
 ```
 
 ## Build
