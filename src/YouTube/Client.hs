@@ -82,7 +82,9 @@ paginate' :: Monoid m => PageHandler m -> [PageSize] -> Token -> IO m
 paginate' _ [] _ = return mempty
 paginate' handler (count: counts) token = do
   Response nextToken content <- handler (Page token count)
-  mappend content <$> paginate' handler counts nextToken
+  case nextToken of
+    Empty -> return content
+    _     -> mappend content <$> paginate' handler counts nextToken
 
 batchBy :: PageSize -> PageSize -> [PageSize]
 batchBy batchSize = unfoldr (cutBatch batchSize)
@@ -96,7 +98,7 @@ cutBatch batchSize count | count <= 0 = Nothing
 instance (FromJSON a) => FromJSON (Response a) where
   parseJSON value@(Object object) = do
     datum <- parseJSON value
-    token <- object .: "nextPageToken"
+    token <- object .:? "nextPageToken" .!= Empty
     return $ Response token datum
   parseJSON invalid = typeMismatch "Response" invalid
 
