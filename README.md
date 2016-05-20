@@ -17,6 +17,12 @@ export API_KEY="My4PI-k3Y"
 
 This is a Haskell project, built with [stack](http://haskellstack.org).
 
+First install requirements with:
+
+```bash
+stack setup
+```
+
 To build:
 
 ```bash

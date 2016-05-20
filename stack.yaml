@@ -3,6 +3,12 @@
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
 resolver: lts-5.15
+compiler: ghc-8.0.1
+setup-info:
+  ghc:
+    linux64:
+      8.0.1:
+        url: "http://downloads.haskell.org/~ghc/8.0.1/ghc-8.0.1-src.tar.xz"
 
 # Local packages, usually specified by relative directory name
 packages:
