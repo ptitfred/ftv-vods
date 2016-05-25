@@ -10,6 +10,7 @@ module YouTube
 
 import Helpers
 import Model
+import YouTube.Commons
 import YouTube.Client
 
 import Data.Aeson hiding (object)
@@ -67,7 +68,7 @@ listPlaylist playlistId count = do
   paginate (listPlaylistHandler credentials playlistId) count
 
 listPlaylistHandler :: Credentials -> YouTubeId -> Page -> IO (Response Playlist)
-listPlaylistHandler credentials playlistId page = get (mkUrl url parameters)
+listPlaylistHandler credentials playlistId page = get NoCredentials (mkUrl url parameters)
   where Page token count = page
         url = "https://www.googleapis.com/youtube/v3/playlistItems"
         parameters = [ ("part"      , "contentDetails,snippet")

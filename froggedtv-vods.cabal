@@ -21,6 +21,8 @@ library
                      , Model
                      , YouTube
   other-modules:       YouTube.Client
+                     , YouTube.Commons
+                     , YouTube.OAuth
   ghc-options:         -Wall -Werror
   build-depends:       base >= 4.7 && < 5
                      , http-conduit
@@ -31,6 +33,13 @@ library
                      , text
                      , split
                      , time
+                     , process
+                     , transformers
+                     , warp
+                     , wai
+                     , scotty
+                     , bytestring
+                     , case-insensitive
   default-language:    Haskell2010
 
 executable ftv-cli
