@@ -20,6 +20,7 @@ library
                      , Matcher
                      , Model
                      , YouTube
+                     , Secrets
   other-modules:       YouTube.Client
                      , YouTube.Commons
                      , YouTube.OAuth
@@ -40,6 +41,9 @@ library
                      , scotty
                      , bytestring
                      , case-insensitive
+                     , dbus
+                     , vector
+                     , containers
   default-language:    Haskell2010
 
 executable ftv-cli
