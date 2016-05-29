@@ -5,7 +5,6 @@ import Matcher
 import Model
 import YouTube
 
-import Control.Monad (mzero)
 import Data.List (intercalate)
 import System.Environment (getArgs)
 
@@ -29,7 +28,7 @@ match count = getDataset count >>= printMatchings
 
 printMatchings :: Maybe Dataset -> IO ()
 printMatchings (Just dataset) = mapM_ printMatching (computeMatchings dataset)
-printMatchings  Nothing       = mzero
+printMatchings  Nothing       = return ()
 
 computeMatchings :: Dataset -> [(Video, Matching)]
 computeMatchings (tournaments, playlist) = map match' (videos playlist)
@@ -40,7 +39,7 @@ printMatching (video, (Perfect tournament)) = do
   putStr $ videoURL video
   putStr " -> "
   putStrLn $ tournamentURL tournament
-printMatching _ = mzero
+printMatching _ = return ()
 
 videoWithCasters :: Video -> IO ()
 videoWithCasters video = do
