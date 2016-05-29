@@ -50,7 +50,7 @@ data UserCredentials = NoCredentials
 instance FromJSON UserCredentials where
   parseJSON (Object o) =
     UserCredentials <$> (Token <$> o .: "access_token")
-                    <*> (Token <$> o .: "refresh_token")
+                    <*> (mkToken <$> o .:? "refresh_token" .!= "")
                     <*> o .: "token_type"
   parseJSON invalid = typeMismatch "UserCredentials" invalid
 
