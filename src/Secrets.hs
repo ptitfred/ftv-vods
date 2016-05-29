@@ -59,9 +59,13 @@ data Success    = Success Variant
 findSecrets :: Filter -> IO [Secret]
 findSecrets filters = do
   client  <- connectSession
-  paths   <- searchItems client filters
-  session <- openSession client
-  getSecrets client paths session
+  unlockSuccess <- unlockPasswords client defaultCollection
+  case unlockSuccess of
+    Success _ -> do
+      paths   <- searchItems client filters
+      session <- openSession client
+      getSecrets client paths session
+    _         -> return []
 
 findPassword :: Filter -> IO (Maybe ByteString)
 findPassword filters = fmap fst . uncons <$> findPasswords filters
