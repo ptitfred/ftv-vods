@@ -13,9 +13,9 @@ import Model
 import YouTube.Commons
 import YouTube.Client
 
-import Data.Aeson hiding (object)
+import Data.Aeson       hiding (Result, object)
 import Data.Aeson.Types (typeMismatch)
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock  (UTCTime)
 
 type YouTubeId = String
 
@@ -67,7 +67,7 @@ listPlaylist playlistId count = do
   credentials <- getCredentials
   paginate (listPlaylistHandler credentials playlistId) count
 
-listPlaylistHandler :: Credentials -> YouTubeId -> Page -> IO (Response Playlist)
+listPlaylistHandler :: Credentials -> YouTubeId -> Page -> IO (Result Playlist)
 listPlaylistHandler credentials playlistId page = get NoCredentials (mkUrl url parameters)
   where Page token count = page
         url = "https://www.googleapis.com/youtube/v3/playlistItems"

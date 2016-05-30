@@ -12,15 +12,15 @@ Portability : X11/Freedesktop
 Store a password:
 > password <- getLine -- read from stdin, popup, ...
 > let label = "Fancy label to be displayed in Keyring"
-> let attributes = Map.fromList [ ("application", "my-application") ]
+> let attributes = [ ("application", "my-application") ]
 > success <- storePassword label password attributes
 > if success
 > then putStrLn "Password saved!"
 > else putStrLn "Failure"
 
 Retrieve passwords:
-> let filters = Map.fromList [ ("application", "my-application") ]
-> password <- head <$> findPasswords filters
+> let filters = [ ("application", "my-application") ]
+> Just password <- findPassword filters
 
 -}
 module Secrets
@@ -31,6 +31,7 @@ module Secrets
     , Label
     , Password
     -- * API
+    , findPassword
     , findPasswords
     , storePassword
     ) where
@@ -39,6 +40,7 @@ import           Control.Concurrent.MVar      (MVar, newEmptyMVar, takeMVar, put
 import           Control.Monad                (void)
 import           Data.ByteString              (ByteString)
 import qualified Data.ByteString.Char8   as C (pack)
+import           Data.List                    (uncons)
 import           Data.Maybe                   (fromJust)
 import qualified Data.Map.Lazy           as M (Map, elems, fromList)
 import           DBus
@@ -46,8 +48,8 @@ import           DBus.Client
 
 type Label      = String
 type Password   = ByteString
-type Attributes = M.Map String String
-type Filter     = M.Map String String
+type Attributes = [(String, String)]
+type Filter     = [(String, String)]
 type Secret     = (ObjectPath, ByteString, ByteString, String)
 
 data Success    = Success Variant
@@ -57,9 +59,16 @@ data Success    = Success Variant
 findSecrets :: Filter -> IO [Secret]
 findSecrets filters = do
   client  <- connectSession
-  paths   <- searchItems client filters
-  session <- openSession client
-  getSecrets client paths session
+  unlockSuccess <- unlockPasswords client defaultCollection
+  case unlockSuccess of
+    Success _ -> do
+      paths   <- searchItems client filters
+      session <- openSession client
+      getSecrets client paths session
+    _         -> return []
+
+findPassword :: Filter -> IO (Maybe ByteString)
+findPassword filters = fmap fst . uncons <$> findPasswords filters
 
 findPasswords :: Filter -> IO [ByteString]
 findPasswords filters = map readPassword <$> findSecrets filters
@@ -94,10 +103,10 @@ defaultCollection = "/org/freedesktop/secrets/aliases/default"
 readPassword :: Secret -> ByteString
 readPassword (_, _, password, _) = password
 
-mkProperties :: String -> M.Map String String -> M.Map String Variant
+mkProperties :: String -> Attributes -> M.Map String Variant
 mkProperties label attributes =
   M.fromList [ ("org.freedesktop.Secret.Item.Label",      toVariant label)
-             , ("org.freedesktop.Secret.Item.Attributes", toVariant attributes)
+             , ("org.freedesktop.Secret.Item.Attributes", toVariant (M.fromList attributes))
              ]
 
 mkPlainSecret :: ObjectPath -> ByteString -> Secret
@@ -151,7 +160,7 @@ searchItems :: Client -> Filter -> IO [ObjectPath]
 searchItems client filters = do
   reply <- call_ client (methodCall "/org/freedesktop/secrets" "org.freedesktop.Secret.Service" "SearchItems")
     { methodCallDestination = Just "org.freedesktop.secrets"
-    , methodCallBody = [toVariant filters]
+    , methodCallBody = [toVariant (M.fromList filters)]
     }
   return $ fromJust $ fromVariant $ methodReturnBody reply !! 0
 
