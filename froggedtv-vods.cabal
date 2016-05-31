@@ -44,6 +44,7 @@ library
                      , vector
                      , containers
                      , random
+                     , cryptonite
                      , http-types
   default-language:    Haskell2010
 
