@@ -49,25 +49,6 @@ type PageHandler m = Page -> IO (Result m)
 get :: (FromJSON a) => UserCredentials -> URL -> IO a
 get = httpRoutine id
 
-httpRoutine :: (FromJSON a) => (Request -> Request) -> UserCredentials -> URL -> IO a
-httpRoutine modifier creds url = do
-  let request = \c -> (modifier . addCredentials c) <$> parseRequest url >>= httpJSONEither
-  getResponseBody <$> (refreshOn401 creds request >>= T.mapM (either throwIO return))
-
-refreshOn401 :: (FromJSON a) => UserCredentials -> (UserCredentials -> IO (Response (Either JSONException a))) -> IO (Response (Either JSONException a))
-refreshOn401 NoCredentials action = action NoCredentials -- avoid cycles
-refreshOn401 creds action = do
-  result <- action creds
-  if getResponseStatusCode result == 401
-  then oauthRefresh creds >>= saveUserCredentials >>= action
-  else return result
-
-addCredentials :: UserCredentials -> Request -> Request
-addCredentials (UserCredentials (Token a) _ tt) =
-  setRequestIgnoreStatus . addRequestHeader "Authorization" authorization
-    where authorization = C.pack $ tt ++ " " ++ a
-addCredentials _ = id
-
 post :: (ToJSON b, FromJSON a) => Maybe b -> UserCredentials -> URL -> IO a
 post  Nothing    = httpRoutine id
 post (Just body) = httpRoutine (setRequestBodyJSON body)
@@ -86,6 +67,13 @@ paginate handler count = paginate' handler batches Empty
   where batches = batchBy maxBatchSize count
         maxBatchSize = 50 -- Set by YouTube API
 
+getUserCredentials :: IO UserCredentials
+getUserCredentials = do
+  currentCreds <- readCurrentUserCredentials
+  case currentCreds of
+    Just creds -> return creds
+    Nothing    -> askUserCredentials >>= saveUserCredentials
+
 saveUserCredentials :: UserCredentials -> IO UserCredentials
 saveUserCredentials c = do
   putStrLn "Saving user credentials"
@@ -95,12 +83,25 @@ saveUserCredentials c = do
   void $ storePassword "FTV-CLI YouTube Refresh Token" refreshToken refreshTokenAttributes
   return c
 
-getUserCredentials :: IO UserCredentials
-getUserCredentials = do
-  currentCreds <- readCurrentUserCredentials
-  case currentCreds of
-    Just creds -> return creds
-    Nothing    -> askUserCredentials >>= saveUserCredentials
+{- Implementation ------------------------------------------------------------}
+httpRoutine :: (FromJSON a) => (Request -> Request) -> UserCredentials -> URL -> IO a
+httpRoutine modifier creds url = do
+  let request = \c -> (modifier . addCredentials c) <$> parseRequest url >>= httpJSONEither
+  getResponseBody <$> (refreshOn401 request creds >>= T.mapM (either throwIO return))
+
+refreshOn401 :: (UserCredentials -> IO (Response a)) -> UserCredentials -> IO (Response a)
+refreshOn401 action NoCredentials = action NoCredentials
+refreshOn401 action creds = do
+  result <- action creds
+  if getResponseStatusCode result == 401
+  then oauthRefresh creds >>= saveUserCredentials >>= action
+  else return result
+
+addCredentials :: UserCredentials -> Request -> Request
+addCredentials (UserCredentials (Token a) _ tt) =
+  setRequestIgnoreStatus . addRequestHeader "Authorization" authorization
+    where authorization = C.pack $ tt ++ " " ++ a
+addCredentials _ = id
 
 {-----------------------------------------------------------------------------}
 paginate' :: Monoid m => PageHandler m -> [PageSize] -> Token -> IO m
