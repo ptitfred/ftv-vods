@@ -11,6 +11,7 @@ module YouTube
     , deletePlaylist
     , listPlaylist
     , browseChannel
+    , browseMyChannel
     ) where
 
 import Helpers
@@ -18,12 +19,40 @@ import Model
 import YouTube.Commons
 import YouTube.Client
 
-import Crypto.Hash      (Digest, SHA1, hash)
-import Data.Aeson       hiding (Result)
-import Data.Aeson.Types (typeMismatch)
-import Data.ByteString (ByteString)
+import Crypto.Hash                (Digest, SHA1, hash)
+import Data.Aeson                 hiding (Result)
+import Data.Aeson.Types           (typeMismatch)
+import Data.ByteString            (ByteString)
 import Data.ByteString.Char8 as C (pack)
-import Data.Time.Clock  (UTCTime)
+import Data.Time.Clock            (UTCTime)
+
+browseMyChannel :: Int -> IO [Playlist]
+browseMyChannel count = do
+  userCredentials <- getUserCredentials
+  myChannel <- findMyChannel
+  browseChannel userCredentials (channelId myChannel) count
+
+newtype Items a = Items [a]
+
+instance FromJSON a => FromJSON (Items a) where
+  parseJSON (Object o) = Items <$> o .: "items"
+  parseJSON invalid = typeMismatch "items" invalid
+
+findMyChannel :: IO Channel
+findMyChannel = do
+  userCredentials <- getUserCredentials
+  firstChannel <$> get userCredentials url
+    where url = mkUrl "GET https://www.googleapis.com/youtube/v3/channels" parameters
+          parameters = [ ("part", "id"), ("mine", "true") ]
+
+firstChannel :: Items Channel -> Channel
+firstChannel (Items cs) = head cs
+
+data Channel = Channel { channelId :: YouTubeId } deriving (Show)
+
+instance FromJSON Channel where
+  parseJSON (Object o) = Channel <$> o .: "id"
+  parseJSON invalid = typeMismatch "Channel" invalid
 
 type YouTubeId = String
 
@@ -77,21 +106,21 @@ mkVideoDetails title vid description publishDate =
           url = "https://www.youtube.com/watch?v=" ++ vid
 
 browseChannel :: UserCredentials -> YouTubeId -> Int -> IO [Playlist]
-browseChannel userCredentials channelId count = do
+browseChannel userCredentials cId count = do
   credentials <- getCredentials
-  unwrap <$> paginate (browseChannelHandler credentials userCredentials channelId) count
+  unwrap <$> paginate (browseChannelHandler credentials userCredentials cId) count
   where unwrap (Playlists playlists) = playlists
 
 browseChannelHandler :: Credentials -> UserCredentials -> YouTubeId -> PageHandler Playlists
-browseChannelHandler credentials userCredentials channelId page =
-  get userCredentials {- NoCredentials -} (mkUrl url parameters)
+browseChannelHandler credentials userCredentials cId page =
+  get userCredentials url
     where Page token count = page
-          url = "https://www.googleapis.com/youtube/v3/playlists"
+          url = mkUrl "https://www.googleapis.com/youtube/v3/playlists" parameters
           part = "contentDetails,snippet"
           parameters = [ ("part"      , part               )
                        , ("maxResults", show count         )
                        , ("pageToken" , show token         )
-                       , ("channelId" , channelId          )
+                       , ("channelId" , cId                )
                        , ("key"       , apiKey credentials )
                        ]
 
