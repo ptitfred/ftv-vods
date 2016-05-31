@@ -8,6 +8,7 @@ module YouTube
     , YouTubeId
     , createPlaylist
     , createPlaylists
+    , deletePlaylist
     , listPlaylist
     ) where
 
@@ -121,3 +122,8 @@ createPlaylists ts = getUserCredentials >>= createPlaylists' ts
 createPlaylists' :: [Tournament] -> UserCredentials -> IO [Playlist]
 createPlaylists' [] _ = return []
 createPlaylists' ts c = mapM (\t -> createPlaylist' t c) ts
+
+deletePlaylist :: YouTubeId -> IO Bool
+deletePlaylist pId = getUserCredentials >>= flip delete url
+  where url = mkUrl "DELETE https://www.googleapis.com/youtube/v3/playlists" parameters
+        parameters = [ ("id", pId) ]

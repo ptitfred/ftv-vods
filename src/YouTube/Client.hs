@@ -8,6 +8,7 @@ module YouTube.Client
     , get
     , post
     , postForm
+    , delete
     , paginate
     , getUserCredentials
     , saveUserCredentials
@@ -30,6 +31,7 @@ import           Data.List                        (unfoldr)
 import qualified Data.Text.Lazy           as LT   (pack)
 import qualified Data.Traversable         as T    (mapM)
 import           Network.HTTP.Simple
+import           Network.HTTP.Types.Status        (statusIsSuccessful)
 import qualified Network.Wai              as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import           System.Random                    (randomRIO)
@@ -72,6 +74,12 @@ post (Just body) = httpRoutine (setRequestBodyJSON body)
 
 postForm :: FromJSON a => [(ByteString, ByteString)] -> UserCredentials -> URL -> IO a
 postForm payload = httpRoutine (setRequestBodyURLEncoded payload)
+
+delete :: UserCredentials -> URL -> IO Bool
+delete creds url = prepare creds url >>= handle
+  where prepare c u = addCredentials c <$> parseRequest u
+        handle r = isSuccess <$> httpLBS r
+        isSuccess = statusIsSuccessful . getResponseStatus
 
 paginate :: Monoid m => PageHandler m -> PageSize -> IO m
 paginate handler count = paginate' handler batches Empty
