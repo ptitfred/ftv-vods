@@ -14,6 +14,7 @@ module YouTube
     , listPlaylist
     , browseChannel
     , browseMyChannel
+    , insertVideo
     ) where
 
 import Helpers
@@ -22,7 +23,7 @@ import YouTube.Commons
 import YouTube.Client
 
 import Crypto.Hash                (Digest, SHA1, hash)
-import Data.Aeson                 hiding (Result)
+import Data.Aeson                 hiding (Result, Success, Error)
 import Data.Aeson.Types           (typeMismatch)
 import Data.ByteString            (ByteString)
 import Data.ByteString.Char8 as C (pack)
@@ -216,6 +217,43 @@ createPlaylists ts = do
   creds <- getUserCredentials
   playlists <- browseMyChannel 1000
   createPlaylists' playlists ts creds
+
+newtype Success = Success Bool deriving (Show)
+
+instance FromJSON Success where
+  parseJSON (Object o) = do
+    e <- o .:? "error" .!= Error 200
+    return $ Success $ errorCode e == 200
+  parseJSON _ = return $ Success False
+
+data Error = Error { errorCode :: Int } deriving (Show)
+
+instance FromJSON Error where
+  parseJSON (Object o) = Error <$> o .: "code"
+  parseJSON invalid = typeMismatch "Error" invalid
+
+insertVideo :: YouTubeId -> YouTubeId -> IO Success
+insertVideo vId pId = do
+  creds <- getUserCredentials
+  post body creds url
+    where body = Just $ PlaylistItem vId pId
+          url = mkUrl "POST https://www.googleapis.com/youtube/v3/playlistItems" parameters
+          parameters = [ ("part", "snippet") ]
+
+data PlaylistItem = PlaylistItem { playlistItemVideoId :: YouTubeId
+                                 , playlistItemPlaylistId :: YouTubeId
+                                 }
+
+instance ToJSON PlaylistItem where
+  toJSON item =
+    object [ "snippet" .=
+               object [ "playlistId" .= playlistItemPlaylistId item
+                      , "resourceId" .=
+                         object [ "kind"    .= ("youtube#video" :: String)
+                                , "videoId" .= playlistItemVideoId item
+                                ]
+                      ]
+           ]
 
 createPlaylists' :: [Playlist] -> [Tournament] -> UserCredentials -> IO [Playlist]
 createPlaylists' _ [] _ = return []
