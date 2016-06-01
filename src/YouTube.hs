@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module YouTube
-    ( Credentials
+    ( Channel(..)
+    , Credentials
     , Playlist(..)
     , PlaylistContent(..)
     , Video(..)
@@ -9,6 +10,7 @@ module YouTube
     , createPlaylist
     , createPlaylists
     , deletePlaylist
+    , findChannel
     , listPlaylist
     , browseChannel
     , browseMyChannel
@@ -39,20 +41,36 @@ instance FromJSON a => FromJSON (Items a) where
   parseJSON (Object o) = Items <$> o .: "items"
   parseJSON invalid = typeMismatch "items" invalid
 
+findChannel :: String -> IO Channel
+findChannel name = do
+  key <- apiKey <$> getCredentials
+  let parameters = [ ("part",       "id,contentDetails" )
+                   , ("forUsername", name)
+                   , ("key",         key )
+                   ]
+  let url = mkUrl "GET https://www.googleapis.com/youtube/v3/channels" parameters
+  firstChannel <$> get NoCredentials url
+
 findMyChannel :: IO Channel
 findMyChannel = do
   userCredentials <- getUserCredentials
   firstChannel <$> get userCredentials url
     where url = mkUrl "GET https://www.googleapis.com/youtube/v3/channels" parameters
-          parameters = [ ("part", "id"), ("mine", "true") ]
+          parameters = [ ("part", "id,contentDetails"), ("mine", "true") ]
 
 firstChannel :: Items Channel -> Channel
 firstChannel (Items cs) = head cs
 
-data Channel = Channel { channelId :: YouTubeId } deriving (Show)
+data Channel = Channel { channelId :: YouTubeId
+                       , channelUploadPlaylist :: YouTubeId
+                       } deriving (Show)
 
 instance FromJSON Channel where
-  parseJSON (Object o) = Channel <$> o .: "id"
+  parseJSON (Object o) = do
+    contentDetails   <- o .: "contentDetails"
+    relatedPlaylists <- contentDetails .: "relatedPlaylists"
+    Channel <$> o .: "id"
+            <*> relatedPlaylists .: "uploads"
   parseJSON invalid = typeMismatch "Channel" invalid
 
 type YouTubeId = String

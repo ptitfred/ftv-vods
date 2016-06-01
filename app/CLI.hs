@@ -38,8 +38,9 @@ foundTournaments (Just dataset) = nub tournaments
           extractTournament  _          = Nothing
 
 videosWithCasters :: Int -> IO ()
-videosWithCasters count =
-  videos <$> listPlaylist uploadsPlaylistId count >>= mapM_ videoWithCasters
+videosWithCasters count = do
+  pId <- uploadsPlaylistId
+  videos <$> listPlaylist pId count >>= mapM_ videoWithCasters
 
 match :: Int -> IO ()
 match count = getDataset count >>= printMatchings
@@ -71,13 +72,14 @@ videoWithCasters video = do
     let pseudos = intercalate ", " $ map casterPseudo casters
     putStrLn $ " " ++ pseudos
 
-uploadsPlaylistId :: YouTubeId
-uploadsPlaylistId = "UUHmNTOzvZhZwaRJoioK0Mqw"
+uploadsPlaylistId :: IO YouTubeId
+uploadsPlaylistId = channelUploadPlaylist <$> findChannel "FroggedTV"
 
 type Dataset = ([Tournament], PlaylistContent)
 
 getDataset :: Int -> IO (Maybe Dataset)
 getDataset count = do
   tournaments     <- listTournaments
-  playlistContent <- pure <$> listPlaylist uploadsPlaylistId count
+  pId <- uploadsPlaylistId
+  playlistContent <- pure <$> listPlaylist pId count
   return $ (,) <$> tournaments <*> playlistContent
