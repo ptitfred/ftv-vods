@@ -3,9 +3,15 @@
 module YouTube
     ( Credentials
     , Playlist(..)
+    , PlaylistContent(..)
     , Video(..)
     , YouTubeId
+    , createPlaylist
+    , createPlaylists
+    , deletePlaylist
     , listPlaylist
+    , browseChannel
+    , browseMyChannel
     ) where
 
 import Helpers
@@ -13,18 +19,56 @@ import Model
 import YouTube.Commons
 import YouTube.Client
 
-import Data.Aeson       hiding (Result, object)
-import Data.Aeson.Types (typeMismatch)
-import Data.Time.Clock  (UTCTime)
+import Crypto.Hash                (Digest, SHA1, hash)
+import Data.Aeson                 hiding (Result)
+import Data.Aeson.Types           (typeMismatch)
+import Data.ByteString            (ByteString)
+import Data.ByteString.Char8 as C (pack)
+import Data.List                  (find)
+import Data.Time.Clock            (UTCTime)
+
+browseMyChannel :: Int -> IO [Playlist]
+browseMyChannel count = do
+  userCredentials <- getUserCredentials
+  myChannel <- findMyChannel
+  browseChannel userCredentials (channelId myChannel) count
+
+newtype Items a = Items [a]
+
+instance FromJSON a => FromJSON (Items a) where
+  parseJSON (Object o) = Items <$> o .: "items"
+  parseJSON invalid = typeMismatch "items" invalid
+
+findMyChannel :: IO Channel
+findMyChannel = do
+  userCredentials <- getUserCredentials
+  firstChannel <$> get userCredentials url
+    where url = mkUrl "GET https://www.googleapis.com/youtube/v3/channels" parameters
+          parameters = [ ("part", "id"), ("mine", "true") ]
+
+firstChannel :: Items Channel -> Channel
+firstChannel (Items cs) = head cs
+
+data Channel = Channel { channelId :: YouTubeId } deriving (Show)
+
+instance FromJSON Channel where
+  parseJSON (Object o) = Channel <$> o .: "id"
+  parseJSON invalid = typeMismatch "Channel" invalid
 
 type YouTubeId = String
 
-data Playlist = Playlist { videos :: [Video] }
+data Playlist = Playlist { playlistId :: YouTubeId
+                         , playlistTitle :: String
+                         , playlistDescription :: String
+                         , playlistTags :: Tags
+                         } deriving (Show)
+
+data PlaylistContent = PlaylistContent { videos :: [Video] }
 
 -- Implement Monoid to let concat queries
-instance Monoid Playlist where
-  mempty        = Playlist []
-  mappend p1 p2 = Playlist (videos p1 ++ videos p2)
+instance Monoid PlaylistContent where
+  mempty        = PlaylistContent []
+  mappend p1 p2 = PlaylistContent (videos p1 ++ videos p2)
 
 data Video = Video { videoTitle :: String
                    , videoId          :: YouTubeId
@@ -35,9 +79,9 @@ data Video = Video { videoTitle :: String
                    }
 
 instance FromJSON Video where
-  parseJSON (Object object) = do
-    snippet        <- object .: "snippet"
-    contentDetails <- object .: "contentDetails"
+  parseJSON (Object o) = do
+    snippet        <- o .: "snippet"
+    contentDetails <- o .: "contentDetails"
     mkVideoDetails <$> snippet .: "title"
                    <*> contentDetails .: "videoId"
                    <*> snippet .: "description"
@@ -62,22 +106,128 @@ mkVideoDetails title vid description publishDate =
     where casters = extractCasters mainCasters description
           url = "https://www.youtube.com/watch?v=" ++ vid
 
-listPlaylist :: YouTubeId -> Int -> IO Playlist
-listPlaylist playlistId count = do
+browseChannel :: UserCredentials -> YouTubeId -> Int -> IO [Playlist]
+browseChannel userCredentials cId count = do
   credentials <- getCredentials
-  paginate (listPlaylistHandler credentials playlistId) count
+  unwrap <$> paginate (browseChannelHandler credentials userCredentials cId) count
+  where unwrap (Playlists playlists) = playlists
 
-listPlaylistHandler :: Credentials -> YouTubeId -> Page -> IO (Result Playlist)
-listPlaylistHandler credentials playlistId page = get NoCredentials (mkUrl url parameters)
+browseChannelHandler :: Credentials -> UserCredentials -> YouTubeId -> PageHandler Playlists
+browseChannelHandler credentials userCredentials cId page =
+  get userCredentials url
+    where Page token count = page
+          url = mkUrl "https://www.googleapis.com/youtube/v3/playlists" parameters
+          part = "contentDetails,snippet"
+          parameters = [ ("part"      , part               )
+                       , ("maxResults", show count         )
+                       , ("pageToken" , show token         )
+                       , ("channelId" , cId                )
+                       , ("key"       , apiKey credentials )
+                       ]
+
+listPlaylist :: YouTubeId -> Int -> IO PlaylistContent
+listPlaylist pId count = do
+  credentials <- getCredentials
+  paginate (listPlaylistHandler credentials pId) count
+
+listPlaylistHandler :: Credentials -> YouTubeId -> PageHandler PlaylistContent
+listPlaylistHandler credentials pId page = get NoCredentials (mkUrl url parameters)
   where Page token count = page
         url = "https://www.googleapis.com/youtube/v3/playlistItems"
-        parameters = [ ("part"      , "contentDetails,snippet")
-                     , ("maxResults", show count              )
-                     , ("pageToken" , show token              )
-                     , ("playlistId", playlistId              )
-                     , ("key"       , apiKey credentials      )
+        part = "contentDetails,snippet"
+        parameters = [ ("part"      , part              )
+                     , ("maxResults", show count        )
+                     , ("pageToken" , show token        )
+                     , ("playlistId", pId               )
+                     , ("key"       , apiKey credentials)
                      ]
 
+instance ToJSON Playlist where
+  toJSON playlist =
+    object
+      [ "snippet" .=
+         object [ "title"       .= playlistTitle playlist
+                , "description" .= playlistDescription playlist
+                , "tags"        .= playlistTags playlist
+                ]
+      ]
+
+newtype Tags = Tags [String] deriving (Show, Eq)
+
+instance ToJSON Tags where
+  toJSON (Tags tags) = toJSON tags
+
+instance FromJSON Tags where
+  parseJSON o = Tags <$> parseJSON o
+
 instance FromJSON Playlist where
-  parseJSON (Object object) = Playlist <$> object .: "items"
+  parseJSON (Object o) = do
+    snippet  <- o .: "snippet"
+    Playlist <$> o .: "id"
+             <*> snippet .: "title"
+             <*> snippet .: "description"
+             <*> snippet .:? "tags" .!= Tags []
   parseJSON invalid = typeMismatch "Playlist" invalid
+
+instance FromJSON PlaylistContent where
+  parseJSON (Object o) = PlaylistContent <$> o .: "items"
+  parseJSON invalid = typeMismatch "PlaylistContent" invalid
+
+newtype Playlists = Playlists [Playlist] deriving (Show)
+
+instance Monoid Playlists where
+  mempty  = Playlists []
+  mappend (Playlists ps1) (Playlists ps2) = Playlists $ ps1 ++ ps2
+
+instance FromJSON Playlists where
+  parseJSON (Object o) = Playlists <$> o .: "items"
+  parseJSON invalid = typeMismatch "[Playlist]" invalid
+
+createPlaylist :: Tournament -> IO Playlist
+createPlaylist t = do
+  creds <- getUserCredentials
+  playlists <- browseMyChannel 1000
+  createPlaylist' playlists t creds
+
+createPlaylists :: [Tournament] -> IO [Playlist]
+createPlaylists [] = return []
+createPlaylists ts = do
+  creds <- getUserCredentials
+  playlists <- browseMyChannel 1000
+  createPlaylists' playlists ts creds
+
+createPlaylists' :: [Playlist] -> [Tournament] -> UserCredentials -> IO [Playlist]
+createPlaylists' _ [] _ = return []
+createPlaylists' ps ts c = mapM (\t -> createPlaylist' ps t c) ts
+
+createPlaylist' :: [Playlist] -> Tournament -> UserCredentials -> IO Playlist
+createPlaylist' ps tournament creds = do
+  let previous = find (samePlaylist playlist) ps
+  case previous of
+    Just found -> return found
+    Nothing    -> post body creds url
+  where url = mkUrl "POST https://www.googleapis.com/youtube/v3/playlists" parameters
+        parameters = [ ("part", "contentDetails,snippet") ]
+        playlist = mkPlaylist tournament
+        body = Just playlist
+
+samePlaylist :: Playlist -> Playlist -> Bool
+samePlaylist p1 p2 = playlistTags p1 == playlistTags p2
+
+mkPlaylist :: Tournament -> Playlist
+mkPlaylist tournament = Playlist "" title description tags
+  where title = tournamentName tournament
+        description = tournamentURL tournament
+        tag = hashURL $ tournamentURL tournament
+        tags = Tags [tag]
+
+hashURL :: URL -> String
+hashURL = show . sha1 . C.pack
+
+sha1 :: ByteString -> Digest SHA1
+sha1 = hash
+
+deletePlaylist :: YouTubeId -> IO Bool
+deletePlaylist pId = getUserCredentials >>= flip delete url
+  where url = mkUrl "DELETE https://www.googleapis.com/youtube/v3/playlists" parameters
+        parameters = [ ("id", pId) ]

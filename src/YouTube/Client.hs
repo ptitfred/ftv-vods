@@ -8,6 +8,7 @@ module YouTube.Client
     , get
     , post
     , postForm
+    , delete
     , paginate
     , getUserCredentials
     , saveUserCredentials
@@ -30,6 +31,7 @@ import           Data.List                        (unfoldr)
 import qualified Data.Text.Lazy           as LT   (pack)
 import qualified Data.Traversable         as T    (mapM)
 import           Network.HTTP.Simple
+import           Network.HTTP.Types.Status        (statusIsSuccessful)
 import qualified Network.Wai              as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import           System.Random                    (randomRIO)
@@ -47,25 +49,6 @@ type PageHandler m = Page -> IO (Result m)
 get :: (FromJSON a) => UserCredentials -> URL -> IO a
 get = httpRoutine id
 
-httpRoutine :: (FromJSON a) => (Request -> Request) -> UserCredentials -> URL -> IO a
-httpRoutine modifier creds url = do
-  let request = \c -> (modifier . addCredentials c) <$> parseRequest url >>= httpJSONEither
-  getResponseBody <$> (refreshOn401 creds request >>= T.mapM (either throwIO return))
-
-refreshOn401 :: (FromJSON a) => UserCredentials -> (UserCredentials -> IO (Response (Either JSONException a))) -> IO (Response (Either JSONException a))
-refreshOn401 NoCredentials action = action NoCredentials -- avoid cycles
-refreshOn401 creds action = do
-  result <- action creds
-  if getResponseStatusCode result == 401
-  then oauthRefresh creds >>= saveUserCredentials >>= action
-  else return result
-
-addCredentials :: UserCredentials -> Request -> Request
-addCredentials (UserCredentials (Token a) _ tt) =
-  setRequestIgnoreStatus . addRequestHeader "Authorization" authorization
-    where authorization = C.pack $ tt ++ " " ++ a
-addCredentials _ = id
-
 post :: (ToJSON b, FromJSON a) => Maybe b -> UserCredentials -> URL -> IO a
 post  Nothing    = httpRoutine id
 post (Just body) = httpRoutine (setRequestBodyJSON body)
@@ -73,10 +56,23 @@ post (Just body) = httpRoutine (setRequestBodyJSON body)
 postForm :: FromJSON a => [(ByteString, ByteString)] -> UserCredentials -> URL -> IO a
 postForm payload = httpRoutine (setRequestBodyURLEncoded payload)
 
+delete :: UserCredentials -> URL -> IO Bool
+delete creds url = prepare creds url >>= handle
+  where prepare c u = addCredentials c <$> parseRequest u
+        handle r = isSuccess <$> httpLBS r
+        isSuccess = statusIsSuccessful . getResponseStatus
+
 paginate :: Monoid m => PageHandler m -> PageSize -> IO m
 paginate handler count = paginate' handler batches Empty
   where batches = batchBy maxBatchSize count
         maxBatchSize = 50 -- Set by YouTube API
+
+getUserCredentials :: IO UserCredentials
+getUserCredentials = do
+  currentCreds <- readCurrentUserCredentials
+  case currentCreds of
+    Just creds -> return creds
+    Nothing    -> askUserCredentials >>= saveUserCredentials
 
 saveUserCredentials :: UserCredentials -> IO UserCredentials
 saveUserCredentials c = do
@@ -87,12 +83,25 @@ saveUserCredentials c = do
   void $ storePassword "FTV-CLI YouTube Refresh Token" refreshToken refreshTokenAttributes
   return c
 
-getUserCredentials :: IO UserCredentials
-getUserCredentials = do
-  currentCreds <- readCurrentUserCredentials
-  case currentCreds of
-    Just creds -> return creds
-    Nothing    -> askUserCredentials >>= saveUserCredentials
+{- Implementation ------------------------------------------------------------}
+httpRoutine :: (FromJSON a) => (Request -> Request) -> UserCredentials -> URL -> IO a
+httpRoutine modifier creds url = do
+  let request = \c -> (modifier . addCredentials c) <$> parseRequest url >>= httpJSONEither
+  getResponseBody <$> (refreshOn401 request creds >>= T.mapM (either throwIO return))
+
+refreshOn401 :: (UserCredentials -> IO (Response a)) -> UserCredentials -> IO (Response a)
+refreshOn401 action NoCredentials = action NoCredentials
+refreshOn401 action creds = do
+  result <- action creds
+  if getResponseStatusCode result == 401
+  then oauthRefresh creds >>= saveUserCredentials >>= action
+  else return result
+
+addCredentials :: UserCredentials -> Request -> Request
+addCredentials (UserCredentials (Token a) _ tt) =
+  setRequestIgnoreStatus . addRequestHeader "Authorization" authorization
+    where authorization = C.pack $ tt ++ " " ++ a
+addCredentials _ = id
 
 {-----------------------------------------------------------------------------}
 paginate' :: Monoid m => PageHandler m -> [PageSize] -> Token -> IO m

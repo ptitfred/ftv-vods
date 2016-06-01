@@ -33,7 +33,7 @@ ofScore :: Scoring -> Score
 ofScore = snd
 
 {- TournamentType ------------------------------------------------------------}
-data TournamentType = Premier | Standard deriving (Show)
+data TournamentType = Premier | Standard deriving (Show, Eq)
 
 {- Matching ------------------------------------------------------------------}
 data Matching = Perfect Tournament | Approx Scores | NoMatch
@@ -46,11 +46,10 @@ isPerfect _ = False
 data Tournament = Tournament { tournamentName :: Name
                              , tournamentURL  :: URL
                              , tournamentType :: TournamentType
-                             } deriving (Show)
+                             } deriving (Show, Eq)
 
 isPremier :: Tournament -> Bool
-isPremier (Tournament _ _ Premier) = True
-isPremier _ = False
+isPremier t = tournamentType t == Premier
 
 isStandard :: Tournament -> Bool
 isStandard = not.isPremier
