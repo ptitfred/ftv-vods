@@ -24,6 +24,7 @@ import Data.Aeson                 hiding (Result)
 import Data.Aeson.Types           (typeMismatch)
 import Data.ByteString            (ByteString)
 import Data.ByteString.Char8 as C (pack)
+import Data.List                  (find)
 import Data.Time.Clock            (UTCTime)
 
 browseMyChannel :: Int -> IO [Playlist]
@@ -151,7 +152,7 @@ instance ToJSON Playlist where
                 ]
       ]
 
-newtype Tags = Tags [String] deriving (Show)
+newtype Tags = Tags [String] deriving (Show, Eq)
 
 instance ToJSON Tags where
   toJSON (Tags tags) = toJSON tags
@@ -183,34 +184,48 @@ instance FromJSON Playlists where
   parseJSON invalid = typeMismatch "[Playlist]" invalid
 
 createPlaylist :: Tournament -> IO Playlist
-createPlaylist t = getUserCredentials >>= createPlaylist' t
+createPlaylist t = do
+  creds <- getUserCredentials
+  playlists <- browseMyChannel 1000
+  createPlaylist' playlists t creds
 
-createPlaylist' :: Tournament -> UserCredentials -> IO Playlist
-createPlaylist' tournament creds = do
-  post body creds (mkUrl url parameters)
-    where url = "POST https://www.googleapis.com/youtube/v3/playlists"
-          parameters = [ ("part", "contentDetails,snippet")
-                       ]
-          title = tournamentName tournament
-          description = tournamentURL tournament
-          tag = hashURL $ tournamentURL tournament
-          tags = Tags [tag]
-          playlist = Playlist "" title description tags
-          body = Just playlist
+createPlaylists :: [Tournament] -> IO [Playlist]
+createPlaylists [] = return []
+createPlaylists ts = do
+  creds <- getUserCredentials
+  playlists <- browseMyChannel 1000
+  createPlaylists' playlists ts creds
+
+createPlaylists' :: [Playlist] -> [Tournament] -> UserCredentials -> IO [Playlist]
+createPlaylists' _ [] _ = return []
+createPlaylists' ps ts c = mapM (\t -> createPlaylist' ps t c) ts
+
+createPlaylist' :: [Playlist] -> Tournament -> UserCredentials -> IO Playlist
+createPlaylist' ps tournament creds = do
+  let previous = find (samePlaylist playlist) ps
+  case previous of
+    Just found -> return found
+    Nothing    -> post body creds url
+  where url = mkUrl "POST https://www.googleapis.com/youtube/v3/playlists" parameters
+        parameters = [ ("part", "contentDetails,snippet") ]
+        playlist = mkPlaylist tournament
+        body = Just playlist
+
+samePlaylist :: Playlist -> Playlist -> Bool
+samePlaylist p1 p2 = playlistTags p1 == playlistTags p2
+
+mkPlaylist :: Tournament -> Playlist
+mkPlaylist tournament = Playlist "" title description tags
+  where title = tournamentName tournament
+        description = tournamentURL tournament
+        tag = hashURL $ tournamentURL tournament
+        tags = Tags [tag]
 
 hashURL :: URL -> String
 hashURL = show . sha1 . C.pack
 
 sha1 :: ByteString -> Digest SHA1
 sha1 = hash
-
-createPlaylists :: [Tournament] -> IO [Playlist]
-createPlaylists [] = return []
-createPlaylists ts = getUserCredentials >>= createPlaylists' ts
-
-createPlaylists' :: [Tournament] -> UserCredentials -> IO [Playlist]
-createPlaylists' [] _ = return []
-createPlaylists' ts c = mapM (\t -> createPlaylist' t c) ts
 
 deletePlaylist :: YouTubeId -> IO Bool
 deletePlaylist pId = getUserCredentials >>= flip delete url
