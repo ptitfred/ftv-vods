@@ -48,6 +48,9 @@ data Tournament = Tournament { tournamentName :: Name
                              , tournamentType :: TournamentType
                              } deriving (Show, Eq)
 
+instance Ord Tournament where
+  compare t1 t2 = compare (tournamentURL t1) (tournamentURL t2)
+
 isPremier :: Tournament -> Bool
 isPremier t = tournamentType t == Premier
 

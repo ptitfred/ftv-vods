@@ -28,6 +28,7 @@ import Data.Aeson.Types           (typeMismatch)
 import Data.ByteString            (ByteString)
 import Data.ByteString.Char8 as C (pack)
 import Data.List                  (find)
+import Data.Map              as M (empty, fromList, (!))
 import Data.Time.Clock            (UTCTime)
 
 browseMyChannel :: Int -> IO [Playlist]
@@ -211,8 +212,8 @@ createPlaylist t = do
   playlists <- browseMyChannel 1000
   createPlaylist' playlists t creds
 
-createPlaylists :: [Tournament] -> IO [Playlist]
-createPlaylists [] = return []
+createPlaylists :: [Tournament] -> IO (Tournament -> Playlist)
+createPlaylists [] = return (M.empty M.!)
 createPlaylists ts = do
   creds <- getUserCredentials
   playlists <- browseMyChannel 1000
@@ -255,9 +256,9 @@ instance ToJSON PlaylistItem where
                       ]
            ]
 
-createPlaylists' :: [Playlist] -> [Tournament] -> UserCredentials -> IO [Playlist]
-createPlaylists' _ [] _ = return []
-createPlaylists' ps ts c = mapM (\t -> createPlaylist' ps t c) ts
+createPlaylists' :: [Playlist] -> [Tournament] -> UserCredentials -> IO (Tournament -> Playlist)
+createPlaylists' _ [] _ = return (\_ -> error "no tournament")
+createPlaylists' ps ts c = ((M.!) . M.fromList) <$> mapM (\t -> (,) t <$> createPlaylist' ps t c) ts
 
 createPlaylist' :: [Playlist] -> Tournament -> UserCredentials -> IO Playlist
 createPlaylist' ps tournament creds = do

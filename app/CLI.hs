@@ -5,7 +5,7 @@ import Matcher
 import Model
 import YouTube
 
-import Data.List (intercalate, nub)
+import Data.List (intercalate, groupBy)
 import Data.Maybe (catMaybes)
 import System.Environment (getArgs)
 
@@ -22,20 +22,25 @@ present :: String -> Bool
 present = not.null
 
 autoPlaylists :: Int -> IO ()
-autoPlaylists count =
-  lastTournaments count >>= createPlaylists >>= mapM_ printPlaylist
+autoPlaylists count = do
+  tournamentsWithVideos <- lastTournaments count
+  let tournaments = map fst tournamentsWithVideos
+  playlists <- createPlaylists tournaments
+  mapM_ (\(t, vs) -> mapM_ (\v -> insertVideo (videoId v) (playlistId $ playlists t)) vs) tournamentsWithVideos
+  mapM_ printPlaylist (map playlists tournaments)
     where printPlaylist = putStrLn . playlistTitle
 
-lastTournaments :: Int -> IO [Tournament]
+lastTournaments :: Int -> IO [(Tournament, [Video])]
 lastTournaments count = foundTournaments <$> getDataset count
 
-foundTournaments :: Maybe Dataset -> [Tournament]
+foundTournaments :: Maybe Dataset -> [(Tournament, [Video])]
 foundTournaments  Nothing       = []
-foundTournaments (Just dataset) = nub tournaments
-    where tournaments = catMaybes $ map extractTournament matchings
-          matchings = map snd $ computeMatchings dataset
-          extractTournament (Perfect t) = Just t
-          extractTournament  _          = Nothing
+foundTournaments (Just dataset) = group tournamentsWithVideos
+    where tournamentsWithVideos = catMaybes $ map extractTournament matchings
+          matchings = computeMatchings dataset
+          group ts = map (\tvs -> (fst . head $ tvs, map snd tvs)) $ groupBy (\p1 p2 -> fst p1 == fst p2) ts
+          extractTournament (v, (Perfect t)) = Just (t, v)
+          extractTournament  _               = Nothing
 
 videosWithCasters :: Int -> IO ()
 videosWithCasters count = do
