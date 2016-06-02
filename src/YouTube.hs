@@ -150,6 +150,9 @@ instance ToJSON Playlist where
                 , "description" .= playlistDescription playlist
                 , "tags"        .= playlistTags playlist
                 ]
+      , "status" .=
+         object [ "privacyStatus" .= ("unlisted" :: String)
+                ]
       ]
 
 newtype Tags = Tags [String] deriving (Show, Eq)
@@ -207,7 +210,7 @@ createPlaylist' ps tournament creds = do
     Just found -> return found
     Nothing    -> post body creds url
   where url = mkUrl "POST https://www.googleapis.com/youtube/v3/playlists" parameters
-        parameters = [ ("part", "contentDetails,snippet") ]
+        parameters = [ ("part", "contentDetails,snippet,status") ]
         playlist = mkPlaylist tournament
         body = Just playlist
 
