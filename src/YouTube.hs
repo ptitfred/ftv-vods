@@ -68,12 +68,14 @@ findChannel name =
                        , ("forUsername", name              )
                        ]
 
-insertVideo :: YouTubeId -> YouTubeId -> Client Success
-insertVideo vId pId = do
+insertVideo :: Video -> Playlist -> Client Success
+insertVideo v p = do
   needsUserCredentials
   post "/playlistItems" parameters body
     where parameters = [ ("part", "snippet") ]
           body = Just (PlaylistItem vId pId)
+          vId = videoId v
+          pId = playlistId p
 
 listPlaylist :: YouTubeId -> Int -> Client PlaylistContent
 listPlaylist pId count = do
