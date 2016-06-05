@@ -47,14 +47,14 @@ createPlaylist :: Tournament -> Client Playlist
 createPlaylist t = do
   needsUserCredentials
   playlists <- browseMyChannel 1000
-  createPlaylist' playlists t
+  findOrCreatePlaylist playlists t
 
 createPlaylists :: [Tournament] -> Client (Tournament -> Playlist)
 createPlaylists [] = return (M.empty M.!)
 createPlaylists ts = do
   needsUserCredentials
   playlists <- browseMyChannel 1000
-  createPlaylists' playlists ts
+  findOrCreatePlaylists playlists ts
 
 deletePlaylist :: YouTubeId -> Client Bool
 deletePlaylist pId = do
@@ -68,12 +68,14 @@ findChannel name =
                        , ("forUsername", name              )
                        ]
 
-insertVideo :: YouTubeId -> YouTubeId -> Client Success
-insertVideo vId pId = do
+insertVideo :: Video -> Playlist -> Client Success
+insertVideo v p = do
   needsUserCredentials
   post "/playlistItems" parameters body
     where parameters = [ ("part", "snippet") ]
           body = Just (PlaylistItem vId pId)
+          vId = videoId v
+          pId = playlistId p
 
 listPlaylist :: YouTubeId -> Int -> Client PlaylistContent
 listPlaylist pId count = do
@@ -108,12 +110,12 @@ withPage :: Page -> Parameters -> Parameters
 withPage (Page token count) parameters =
   ("pageToken" , show token) : ("maxResults", show count) : parameters
 
-createPlaylists' :: [Playlist] -> [Tournament] -> Client (Tournament -> Playlist)
-createPlaylists' _ []  = return (\_ -> error "no tournament")
-createPlaylists' ps ts = ((M.!) . M.fromList) <$> mapM (\t -> (,) t <$> createPlaylist' ps t) ts
+findOrCreatePlaylists :: [Playlist] -> [Tournament] -> Client (Tournament -> Playlist)
+findOrCreatePlaylists _ []  = return (\_ -> error "no tournament")
+findOrCreatePlaylists ps ts = ((M.!) . M.fromList) <$> mapM (\t -> (,) t <$> findOrCreatePlaylist ps t) ts
 
-createPlaylist' :: [Playlist] -> Tournament -> Client Playlist
-createPlaylist' ps tournament = do
+findOrCreatePlaylist :: [Playlist] -> Tournament -> Client Playlist
+findOrCreatePlaylist ps tournament = do
   let previous = find (samePlaylist playlist) ps
   case previous of
     Just found -> return found
