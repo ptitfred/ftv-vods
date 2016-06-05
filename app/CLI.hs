@@ -5,7 +5,7 @@ import Matcher
 import Model
 import YouTube
 
-import Data.List (intercalate, groupBy)
+import Data.List (intercalate, groupBy, (\\))
 import Data.Maybe (catMaybes)
 import System.Environment (getArgs)
 
@@ -26,15 +26,26 @@ autoPlaylists count = do
   tournamentsWithVideos <- lastTournaments count
   let tournaments = map fst tournamentsWithVideos
   playlists <- createPlaylists tournaments
-  let items = [(v, playlists t) | (t, vs) <- tournamentsWithVideos, v <- vs]
+  tournamentsWithNewVideos <- onlyNewVideos playlists tournamentsWithVideos
+  let items = [(v, playlists t) | (t, vs) <- tournamentsWithNewVideos, v <- vs]
   mapM_ (uncurry insertVideo) items
   mapM_ (liftIO.printPlaylist) (map playlists tournaments)
-    where printPlaylist = putStrLn . playlistTitle
+    where printPlaylist = putStrLn.playlistTitle
 
-lastTournaments :: Int -> Client [(Tournament, [Video])]
+onlyNewVideos :: (Tournament -> Playlist) -> [Serie] -> Client [Serie]
+onlyNewVideos ps = mapM (filterOldVideos ps)
+
+type Serie = (Tournament, [Video])
+
+filterOldVideos :: (Tournament -> Playlist) -> Serie -> Client Serie
+filterOldVideos playlists (tournament, vs) = do
+  oldVideos <- videos <$> listPlaylist (playlistId $ playlists tournament) 1000
+  return (tournament, vs \\ oldVideos)
+
+lastTournaments :: Int -> Client [Serie]
 lastTournaments count = foundTournaments <$> getDataset count
 
-foundTournaments :: Maybe Dataset -> [(Tournament, [Video])]
+foundTournaments :: Maybe Dataset -> [Serie]
 foundTournaments  Nothing       = []
 foundTournaments (Just dataset) = group tournamentsWithVideos
   where tournamentsWithVideos = catMaybes $ map extractTournament matchings

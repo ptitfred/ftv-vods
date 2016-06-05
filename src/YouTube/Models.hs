@@ -66,6 +66,9 @@ instance FromJSON Video where
                    <*> snippet .: "publishedAt"
   parseJSON invalid = typeMismatch "Video" invalid
 
+instance Eq Video where
+  v1 == v2 = videoId v1 == videoId v2
+
 mkVideoDetails :: String -> YouTubeId -> String -> UTCTime -> Video
 mkVideoDetails title vid description publishDate =
   Video title vid description casters url publishDate
