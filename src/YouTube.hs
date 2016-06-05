@@ -24,16 +24,14 @@ module YouTube
     , liftIO
     ) where
 
+import Helpers (hashURL)
 import Model
 import YouTube.Commons
 import YouTube.Client
 import YouTube.Models
 
-import Crypto.Hash                (Digest, SHA1, hash)
-import Data.ByteString            (ByteString)
-import Data.ByteString.Char8 as C (pack)
-import Data.List                  (find)
-import Data.Map              as M (empty, fromList, (!))
+import Data.List      (find)
+import Data.Map  as M (empty, fromList, (!))
 
 browseChannel :: YouTubeId -> Int -> Client [Playlist]
 browseChannel cId count = do
@@ -134,9 +132,3 @@ mkPlaylist tournament = Playlist "" title description tags
         description = tournamentURL tournament
         tag = hashURL $ tournamentURL tournament
         tags = Tags [tag]
-
-hashURL :: URL -> String
-hashURL = show . sha1 . C.pack
-
-sha1 :: ByteString -> Digest SHA1
-sha1 = hash
