@@ -46,6 +46,7 @@ library
                      , random
                      , cryptonite
                      , http-types
+                     , mtl
   default-language:    Haskell2010
 
 executable ftv-cli

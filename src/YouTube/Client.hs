@@ -1,17 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module YouTube.Client
-    ( Page(..)
+    ( Client
+    , Page(..)
     , PageHandler
     , PageSize
     , Result(..)
+    , runClient
+    , liftIO
+    , needsUserCredentials
     , get
     , post
     , postForm
     , delete
     , paginate
-    , getUserCredentials
-    , saveUserCredentials
     ) where
 
 import           Helpers
@@ -22,6 +24,8 @@ import           YouTube.Commons
 import           Control.Concurrent               (MVar, forkIO, newEmptyMVar, putMVar, takeMVar)
 import           Control.Exception                (throwIO)
 import           Control.Monad                    (void)
+import qualified Control.Monad.Reader     as RM   (ReaderT, ask, runReaderT)
+import qualified Control.Monad.State      as STM  (StateT, get, put, runStateT)
 import           Control.Monad.IO.Class           (liftIO)
 import           Data.Aeson                       hiding (Result)
 import           Data.Aeson.Types                 (typeMismatch)
@@ -43,59 +47,93 @@ data Page = Page Token PageSize
 
 data Result a = Result Token a
 
-type PageHandler m = Page -> IO (Result m)
+type PageHandler m = Page -> Client (Result m)
+type Client = RM.ReaderT Credentials (STM.StateT UserCredentials IO)
 
 {- Functions -----------------------------------------------------------------}
-get :: (FromJSON a) => UserCredentials -> URL -> IO a
-get = httpRoutine id
 
-post :: (ToJSON b, FromJSON a) => Maybe b -> UserCredentials -> URL -> IO a
-post  Nothing    = httpRoutine id
-post (Just body) = httpRoutine (setRequestBodyJSON body)
+runClient :: Client a -> IO a
+runClient client = do
+  credentials <- getCredentials
+  fst <$> STM.runStateT (RM.runReaderT client credentials) NoCredentials
 
-postForm :: FromJSON a => [(ByteString, ByteString)] -> UserCredentials -> URL -> IO a
-postForm payload = httpRoutine (setRequestBodyURLEncoded payload)
+needsUserCredentials :: Client ()
+needsUserCredentials = do
+  credentials <- STM.get
+  case credentials of
+    NoCredentials -> getUserCredentials
+    _ -> return ()
 
-delete :: UserCredentials -> URL -> IO Bool
-delete creds url = prepare creds url >>= handle
+get :: (FromJSON a) => URL -> Parameters -> Client a
+get u ps = mkURL "GET" u ps >>= httpRoutine id
+
+post :: (ToJSON b, FromJSON a) => URL -> Parameters -> Maybe b -> Client a
+post u ps  Nothing    = mkURL "POST" u ps >>= httpRoutine id
+post u ps (Just body) = mkURL "POST" u ps >>= httpRoutine (setRequestBodyJSON body)
+
+postForm :: FromJSON a => URL -> Parameters -> [(ByteString, ByteString)] -> Client a
+postForm u ps payload = mkURL "POST" u ps >>= httpRoutine (setRequestBodyURLEncoded payload)
+
+mkURL :: String -> URL -> Parameters -> Client URL
+mkURL verb u ps = do
+  key <- apiKey <$> RM.ask
+  return $ mkUrl (verb ++ " https://www.googleapis.com/youtube/v3" ++ u) (("key", key) : ps)
+
+delete :: URL -> Parameters -> Client Bool
+delete url parameters = do
+  creds <- STM.get
+  u <- mkURL "DELETE" url parameters
+  prepare creds u >>= handle
   where prepare c u = addCredentials c <$> parseRequest u
         handle r = isSuccess <$> httpLBS r
         isSuccess = statusIsSuccessful . getResponseStatus
 
-paginate :: Monoid m => PageHandler m -> PageSize -> IO m
+paginate :: Monoid m => PageHandler m -> PageSize -> Client m
 paginate handler count = paginate' handler batches Empty
   where batches = batchBy maxBatchSize count
         maxBatchSize = 50 -- Set by YouTube API
 
-getUserCredentials :: IO UserCredentials
+getUserCredentials :: Client ()
 getUserCredentials = do
-  currentCreds <- readCurrentUserCredentials
+  currentCreds <- liftIO readCurrentUserCredentials
   case currentCreds of
-    Just creds -> return creds
-    Nothing    -> askUserCredentials >>= saveUserCredentials
+    Nothing    -> askUserCredentials >> saveUserCredentials
+    Just creds -> STM.put creds
 
-saveUserCredentials :: UserCredentials -> IO UserCredentials
-saveUserCredentials c = do
-  putStrLn "Saving user credentials"
-  let accessToken  = C.pack $ show $ userAccessToken c
-  let refreshToken = C.pack $ show $ userRefreshToken c
-  void $ storePassword "FTV-CLI YouTube Access Token" accessToken accessTokenAttributes
-  void $ storePassword "FTV-CLI YouTube Refresh Token" refreshToken refreshTokenAttributes
-  return c
+saveUserCredentials :: Client ()
+saveUserCredentials = do
+  creds <- STM.get
+  let accessToken  = C.pack $ show $ userAccessToken creds
+  let refreshToken = C.pack $ show $ userRefreshToken creds
+  liftIO $ do
+    putStrLn "Saving user credentials"
+    void $ storePassword "FTV-CLI YouTube Access Token" accessToken accessTokenAttributes
+    void $ storePassword "FTV-CLI YouTube Refresh Token" refreshToken refreshTokenAttributes
+  return ()
 
 {- Implementation ------------------------------------------------------------}
-httpRoutine :: (FromJSON a) => (Request -> Request) -> UserCredentials -> URL -> IO a
-httpRoutine modifier creds url = do
-  let request = \c -> (modifier . addCredentials c) <$> parseRequest url >>= httpJSONEither
-  getResponseBody <$> (refreshOn401 request creds >>= T.mapM (either throwIO return))
+httpRoutine :: (FromJSON a) => (Request -> Request) -> URL -> Client a
+httpRoutine modifier url = do
+  let request = prepareRequest modifier url
+  let action = refreshOn401 request >>= T.mapM (either (liftIO.throwIO) return)
+  getResponseBody <$> action
 
-refreshOn401 :: (UserCredentials -> IO (Response a)) -> UserCredentials -> IO (Response a)
-refreshOn401 action NoCredentials = action NoCredentials
-refreshOn401 action creds = do
-  result <- action creds
-  if getResponseStatusCode result == 401
-  then oauthRefresh creds >>= saveUserCredentials >>= action
-  else return result
+prepareRequest :: (FromJSON a) => (Request -> Request) -> URL -> Client (Response (Either JSONException a))
+prepareRequest modifier url = do
+  c <- STM.get
+  some <- (modifier . addCredentials c) <$> parseRequest url
+  liftIO $ httpJSONEither some
+
+refreshOn401 :: Client (Response a) -> Client (Response a)
+refreshOn401 action = do
+  creds <- STM.get
+  case creds of
+    NoCredentials -> action
+    _ -> do
+      result <- action
+      if getResponseStatusCode result == 401
+      then oauthRefresh >> saveUserCredentials >> action
+      else return result
 
 addCredentials :: UserCredentials -> Request -> Request
 addCredentials (UserCredentials (Token a) _ tt) =
@@ -104,7 +142,7 @@ addCredentials (UserCredentials (Token a) _ tt) =
 addCredentials _ = id
 
 {-----------------------------------------------------------------------------}
-paginate' :: Monoid m => PageHandler m -> [PageSize] -> Token -> IO m
+paginate' :: Monoid m => PageHandler m -> [PageSize] -> Token -> Client m
 paginate' _ [] _ = return mempty
 paginate' handler (count: counts) token = do
   Result nextToken content <- handler (Page token count)
@@ -128,13 +166,14 @@ instance (FromJSON a) => FromJSON (Result a) where
     return $ Result token datum
   parseJSON invalid = typeMismatch "Result" invalid
 
-askUserCredentials :: IO UserCredentials
+askUserCredentials :: Client ()
 askUserCredentials = do
-  port <- randomRIO (32100, 32200)
+  port <- liftIO $ randomRIO (32100, 32200)
   let url = oauthAuthorizeUrl port
-  putStrLn $ "Your browser should have been open."
-  putStrLn $ "If not, please open " ++ url
-  openBrowser url
+  liftIO $ do
+    putStrLn $ "Your browser should have been open."
+    putStrLn $ "If not, please open " ++ url
+    openBrowser url
   oauthCredentials port
 
 readCurrentUserCredentials :: IO (Maybe UserCredentials)
@@ -156,21 +195,26 @@ type Port = Int
 oauthAuthorizeUrl :: Port -> URL
 oauthAuthorizeUrl port = baseURL port ++ "/authorize"
 
-oauthCredentials :: Port -> IO UserCredentials
+oauthCredentials :: Port -> Client ()
 oauthCredentials port = waitOAuth port >>= requestToken port
 
-oauthRefresh :: UserCredentials -> IO UserCredentials
-oauthRefresh (UserCredentials _ (Token refreshToken) _) = do
-  putStrLn "Refreshing OAuth token"
-  credentials <- getCredentials
-  let body = [ ( "client_id"    , C.pack $ clientId credentials     )
-             , ( "client_secret", C.pack $ clientSecret credentials )
-             , ( "refresh_token", C.pack $ refreshToken             )
-             , ( "grant_type"   , "refresh_token"                   )
-             ]
-  creds <- postForm body NoCredentials "POST https://accounts.google.com/o/oauth2/token"
-  return $ creds { userRefreshToken = Token refreshToken }
-oauthRefresh _ = return NoCredentials
+oauthRefresh :: Client ()
+oauthRefresh  = do
+  creds <- STM.get
+  case creds of
+    UserCredentials _ (Token refreshToken) _ -> do
+      liftIO $ putStrLn "Refreshing OAuth token"
+      credentials <- RM.ask
+      let body = [ ( "client_id"    , C.pack $ clientId credentials     )
+                 , ( "client_secret", C.pack $ clientSecret credentials )
+                 , ( "refresh_token", C.pack $ refreshToken             )
+                 , ( "grant_type"   , "refresh_token"                   )
+                 ]
+      STM.put NoCredentials
+      creds' <- postForm "https://accounts.google.com/o/oauth2/token" [] body
+      STM.put creds' { userRefreshToken = Token refreshToken }
+      return ()
+    _ -> return ()
 
 application :: URL -> MVar String -> IO Wai.Application
 application authUrl returnValue = S.scottyApp $ do
@@ -186,16 +230,17 @@ callbackHandler returnValue = do
   liftIO (putMVar returnValue token)
   S.html "<html><body><strong>Thank you!</strong><br/><br/>Please get back to your terminal to continue.</body></html>"
 
-awaitCallback :: Int -> URL -> IO String
-awaitCallback port authUrl = do
-  returnValue <- newEmptyMVar
-  app <- application authUrl returnValue
-  _ <- forkIO $ Warp.run port app
-  takeMVar returnValue
+awaitCallback :: Int -> URL -> Client String
+awaitCallback port authUrl =
+  liftIO $ do
+    returnValue <- newEmptyMVar
+    app <- application authUrl returnValue
+    _ <- forkIO $ Warp.run port app
+    takeMVar returnValue
 
-getOAuthUrl :: Int -> IO String
+getOAuthUrl :: Int -> Client String
 getOAuthUrl port = do
-  credentials <- getCredentials
+  credentials <- RM.ask
   return $ mkUrl "https://accounts.google.com/o/oauth2/v2/auth"
     [ ( "response_type" , "code"                                    )
     , ( "client_id"     , clientId credentials                      )
@@ -203,19 +248,21 @@ getOAuthUrl port = do
     , ( "scope"         , "https://www.googleapis.com/auth/youtube" )
     ]
 
-waitOAuth :: Port -> IO String
+waitOAuth :: Port -> Client String
 waitOAuth port = getOAuthUrl port >>= awaitCallback port
 
-requestToken :: Int -> String -> IO UserCredentials
+requestToken :: Int -> String -> Client ()
 requestToken port personalToken = do
-  credentials <- getCredentials
-  post noBody NoCredentials $ mkUrl "POST https://www.googleapis.com/oauth2/v4/token"
+  credentials <- RM.ask
+  STM.put NoCredentials
+  creds <- post "https://www.googleapis.com/oauth2/v4/token"
     [ ( "code"          , personalToken            )
     , ( "client_id"     , clientId credentials     )
     , ( "client_secret" , clientSecret credentials )
     , ( "redirect_uri"  , baseURL port             )
     , ( "grant_type"    , "authorization_code"     )
-    ]
+    ] noBody
+  STM.put creds
 
 baseURL :: Port -> URL
 baseURL port = "http://localhost:" ++ show port
