@@ -42,17 +42,20 @@ browseChannel cId count = do
 
 browseMyChannel :: Int -> Client [Playlist]
 browseMyChannel count = do
+  needsUserCredentials
   myChannel <- channelId <$> findMyChannel
   browseChannel myChannel count
 
 createPlaylist :: Tournament -> Client Playlist
 createPlaylist t = do
+  needsUserCredentials
   playlists <- browseMyChannel 1000
   createPlaylist' playlists t
 
 createPlaylists :: [Tournament] -> Client (Tournament -> Playlist)
 createPlaylists [] = return (M.empty M.!)
 createPlaylists ts = do
+  needsUserCredentials
   playlists <- browseMyChannel 1000
   createPlaylists' playlists ts
 
@@ -81,8 +84,7 @@ listPlaylist pId count = do
   paginate (listPlaylistHandler pId) count
 
 findMyChannel :: Client Channel
-findMyChannel = do
-  needsUserCredentials
+findMyChannel =
   firstChannel <$> get "/channels" parameters
     where parameters = [ ("part", "id,contentDetails"), ("mine", "true") ]
 
@@ -115,7 +117,6 @@ createPlaylists' ps ts = ((M.!) . M.fromList) <$> mapM (\t -> (,) t <$> createPl
 
 createPlaylist' :: [Playlist] -> Tournament -> Client Playlist
 createPlaylist' ps tournament = do
-  needsUserCredentials
   let previous = find (samePlaylist playlist) ps
   case previous of
     Just found -> return found
