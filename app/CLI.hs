@@ -10,27 +10,27 @@ import Data.Maybe (catMaybes)
 import System.Environment (getArgs)
 
 main :: IO ()
-main = getArgs >>= dispatch
+main = getArgs >>= runClient.dispatch
 
-dispatch :: [String] -> IO ()
+dispatch :: [String] -> Client ()
 dispatch ("auto-pls": count : _) | present count = autoPlaylists     (read count)
 dispatch ("casters" : count : _) | present count = videosWithCasters (read count)
 dispatch ("match"   : count : _) | present count = match             (read count)
-dispatch _ = putStrLn "Unknown action"
+dispatch _ = liftIO $ putStrLn "Unknown action"
 
 present :: String -> Bool
 present = not.null
 
-autoPlaylists :: Int -> IO ()
+autoPlaylists :: Int -> Client ()
 autoPlaylists count = do
   tournamentsWithVideos <- lastTournaments count
   let tournaments = map fst tournamentsWithVideos
   playlists <- createPlaylists tournaments
   mapM_ (\(t, vs) -> mapM_ (\v -> insertVideo (videoId v) (playlistId $ playlists t)) vs) tournamentsWithVideos
-  mapM_ printPlaylist (map playlists tournaments)
+  mapM_ (liftIO.printPlaylist) (map playlists tournaments)
     where printPlaylist = putStrLn . playlistTitle
 
-lastTournaments :: Int -> IO [(Tournament, [Video])]
+lastTournaments :: Int -> Client [(Tournament, [Video])]
 lastTournaments count = foundTournaments <$> getDataset count
 
 foundTournaments :: Maybe Dataset -> [(Tournament, [Video])]
@@ -42,13 +42,13 @@ foundTournaments (Just dataset) = group tournamentsWithVideos
           extractTournament (v, (Perfect t)) = Just (t, v)
           extractTournament  _               = Nothing
 
-videosWithCasters :: Int -> IO ()
+videosWithCasters :: Int -> Client ()
 videosWithCasters count = do
   pId <- uploadsPlaylistId
-  videos <$> listPlaylist pId count >>= mapM_ videoWithCasters
+  videos <$> listPlaylist pId count >>= mapM_ (liftIO.videoWithCasters)
 
-match :: Int -> IO ()
-match count = getDataset count >>= printMatchings
+match :: Int -> Client ()
+match count = getDataset count >>= liftIO.printMatchings
 
 printMatchings :: Maybe Dataset -> IO ()
 printMatchings (Just dataset) = mapM_ printMatching (computeMatchings dataset)
@@ -77,14 +77,14 @@ videoWithCasters video = do
     let pseudos = intercalate ", " $ map casterPseudo casters
     putStrLn $ " " ++ pseudos
 
-uploadsPlaylistId :: IO YouTubeId
+uploadsPlaylistId :: Client YouTubeId
 uploadsPlaylistId = channelUploadPlaylist <$> findChannel "FroggedTV"
 
 type Dataset = ([Tournament], PlaylistContent)
 
-getDataset :: Int -> IO (Maybe Dataset)
+getDataset :: Int -> Client (Maybe Dataset)
 getDataset count = do
-  tournaments     <- listTournaments
+  tournaments <- liftIO listTournaments
   pId <- uploadsPlaylistId
   playlistContent <- pure <$> listPlaylist pId count
   return $ (,) <$> tournaments <*> playlistContent

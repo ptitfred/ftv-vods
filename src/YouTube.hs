@@ -1,20 +1,27 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module YouTube
-    ( Channel(..)
+    (
+      -- Features
+      browseChannel
+    , browseMyChannel
+    , createPlaylist
+    , createPlaylists
+    , deletePlaylist
+    , findChannel
+    , insertVideo
+    , listPlaylist
+      -- Models
+    , Channel(..)
     , Credentials
     , Playlist(..)
     , PlaylistContent(..)
     , Video(..)
     , YouTubeId
-    , createPlaylist
-    , createPlaylists
-    , deletePlaylist
-    , findChannel
-    , listPlaylist
-    , browseChannel
-    , browseMyChannel
-    , insertVideo
+      -- Reexport Client utils
+    , Client
+    , runClient
+    , liftIO
     ) where
 
 import Helpers
@@ -31,11 +38,10 @@ import Data.List                  (find)
 import Data.Map              as M (empty, fromList, (!))
 import Data.Time.Clock            (UTCTime)
 
-browseMyChannel :: Int -> IO [Playlist]
+browseMyChannel :: Int -> Client [Playlist]
 browseMyChannel count = do
-  userCredentials <- getUserCredentials
-  myChannel <- findMyChannel
-  browseChannel userCredentials (channelId myChannel) count
+  myChannel <- channelId <$> findMyChannel
+  browseChannel myChannel count
 
 newtype Items a = Items [a]
 
@@ -43,27 +49,23 @@ instance FromJSON a => FromJSON (Items a) where
   parseJSON (Object o) = Items <$> o .: "items"
   parseJSON invalid = typeMismatch "items" invalid
 
-findChannel :: String -> IO Channel
-findChannel name = do
-  key <- apiKey <$> getCredentials
-  let parameters = [ ("part",       "id,contentDetails" )
-                   , ("forUsername", name)
-                   , ("key",         key )
-                   ]
-  let url = mkUrl "GET https://www.googleapis.com/youtube/v3/channels" parameters
-  firstChannel <$> get NoCredentials url
+findChannel :: String -> Client Channel
+findChannel name =
+  firstChannel <$> get "/channels" parameters
+    where parameters = [ ("part",       "id,contentDetails" )
+                       , ("forUsername", name)
+                       ]
 
-findMyChannel :: IO Channel
+findMyChannel :: Client Channel
 findMyChannel = do
-  userCredentials <- getUserCredentials
-  firstChannel <$> get userCredentials url
-    where url = mkUrl "GET https://www.googleapis.com/youtube/v3/channels" parameters
-          parameters = [ ("part", "id,contentDetails"), ("mine", "true") ]
+  needsUserCredentials
+  firstChannel <$> get "/channels" parameters
+    where parameters = [ ("part", "id,contentDetails"), ("mine", "true") ]
 
 firstChannel :: Items Channel -> Channel
 firstChannel (Items cs) = head cs
 
-data Channel = Channel { channelId :: YouTubeId
+data Channel = Channel { channelId             :: YouTubeId
                        , channelUploadPlaylist :: YouTubeId
                        } deriving (Show)
 
@@ -77,10 +79,10 @@ instance FromJSON Channel where
 
 type YouTubeId = String
 
-data Playlist = Playlist { playlistId :: YouTubeId
-                         , playlistTitle :: String
+data Playlist = Playlist { playlistId          :: YouTubeId
+                         , playlistTitle       :: String
                          , playlistDescription :: String
-                         , playlistTags :: Tags
+                         , playlistTags        :: Tags
                          } deriving (Show)
 
 data PlaylistContent = PlaylistContent { videos :: [Video] }
@@ -90,7 +92,7 @@ instance Monoid PlaylistContent where
   mempty        = PlaylistContent []
   mappend p1 p2 = PlaylistContent (videos p1 ++ videos p2)
 
-data Video = Video { videoTitle :: String
+data Video = Video { videoTitle       :: String
                    , videoId          :: YouTubeId
                    , videoDescription :: String
                    , videoCasters     :: [Caster]
@@ -126,41 +128,35 @@ mkVideoDetails title vid description publishDate =
     where casters = extractCasters mainCasters description
           url = "https://www.youtube.com/watch?v=" ++ vid
 
-browseChannel :: UserCredentials -> YouTubeId -> Int -> IO [Playlist]
-browseChannel userCredentials cId count = do
-  credentials <- getCredentials
-  unwrap <$> paginate (browseChannelHandler credentials userCredentials cId) count
-  where unwrap (Playlists playlists) = playlists
+browseChannel :: YouTubeId -> Int -> Client [Playlist]
+browseChannel cId count = do
+  unwrap <$> paginate (browseChannelHandler cId) count
+    where unwrap (Playlists playlists) = playlists
 
-browseChannelHandler :: Credentials -> UserCredentials -> YouTubeId -> PageHandler Playlists
-browseChannelHandler credentials userCredentials cId page =
-  get userCredentials url
-    where Page token count = page
-          url = mkUrl "https://www.googleapis.com/youtube/v3/playlists" parameters
-          part = "contentDetails,snippet"
-          parameters = [ ("part"      , part               )
-                       , ("maxResults", show count         )
-                       , ("pageToken" , show token         )
-                       , ("channelId" , cId                )
-                       , ("key"       , apiKey credentials )
+browseChannelHandler :: YouTubeId -> PageHandler Playlists
+browseChannelHandler cId page =
+  get "/playlists" (withPage page parameters)
+    where part       = "contentDetails,snippet"
+          parameters = [ ("part"      , part)
+                       , ("channelId" , cId )
                        ]
 
-listPlaylist :: YouTubeId -> Int -> IO PlaylistContent
+listPlaylist :: YouTubeId -> Int -> Client PlaylistContent
 listPlaylist pId count = do
-  credentials <- getCredentials
-  paginate (listPlaylistHandler credentials pId) count
+  needsUserCredentials
+  paginate (listPlaylistHandler pId) count
 
-listPlaylistHandler :: Credentials -> YouTubeId -> PageHandler PlaylistContent
-listPlaylistHandler credentials pId page = get NoCredentials (mkUrl url parameters)
-  where Page token count = page
-        url = "https://www.googleapis.com/youtube/v3/playlistItems"
-        part = "contentDetails,snippet"
-        parameters = [ ("part"      , part              )
-                     , ("maxResults", show count        )
-                     , ("pageToken" , show token        )
-                     , ("playlistId", pId               )
-                     , ("key"       , apiKey credentials)
-                     ]
+listPlaylistHandler :: YouTubeId -> PageHandler PlaylistContent
+listPlaylistHandler pId page = do
+  get "/playlistItems" (withPage page parameters)
+    where part       = "contentDetails,snippet"
+          parameters = [ ("part"      , part)
+                       , ("playlistId", pId )
+                       ]
+
+withPage :: Page -> Parameters -> Parameters
+withPage (Page token count) parameters =
+  ("pageToken" , show token) : ("maxResults", show count) : parameters
 
 instance ToJSON Playlist where
   toJSON playlist =
@@ -206,18 +202,16 @@ instance FromJSON Playlists where
   parseJSON (Object o) = Playlists <$> o .: "items"
   parseJSON invalid = typeMismatch "[Playlist]" invalid
 
-createPlaylist :: Tournament -> IO Playlist
+createPlaylist :: Tournament -> Client Playlist
 createPlaylist t = do
-  creds <- getUserCredentials
   playlists <- browseMyChannel 1000
-  createPlaylist' playlists t creds
+  createPlaylist' playlists t
 
-createPlaylists :: [Tournament] -> IO (Tournament -> Playlist)
+createPlaylists :: [Tournament] -> Client (Tournament -> Playlist)
 createPlaylists [] = return (M.empty M.!)
 createPlaylists ts = do
-  creds <- getUserCredentials
   playlists <- browseMyChannel 1000
-  createPlaylists' playlists ts creds
+  createPlaylists' playlists ts
 
 newtype Success = Success Bool deriving (Show)
 
@@ -233,13 +227,12 @@ instance FromJSON Error where
   parseJSON (Object o) = Error <$> o .: "code"
   parseJSON invalid = typeMismatch "Error" invalid
 
-insertVideo :: YouTubeId -> YouTubeId -> IO Success
+insertVideo :: YouTubeId -> YouTubeId -> Client Success
 insertVideo vId pId = do
-  creds <- getUserCredentials
-  post body creds url
-    where body = Just $ PlaylistItem vId pId
-          url = mkUrl "POST https://www.googleapis.com/youtube/v3/playlistItems" parameters
-          parameters = [ ("part", "snippet") ]
+  needsUserCredentials
+  post "/playlistItems" parameters body
+    where parameters = [ ("part", "snippet") ]
+          body = Just (PlaylistItem vId pId)
 
 data PlaylistItem = PlaylistItem { playlistItemVideoId :: YouTubeId
                                  , playlistItemPlaylistId :: YouTubeId
@@ -250,26 +243,27 @@ instance ToJSON PlaylistItem where
     object [ "snippet" .=
                object [ "playlistId" .= playlistItemPlaylistId item
                       , "resourceId" .=
-                         object [ "kind"    .= ("youtube#video" :: String)
+                         object [ "kind"    .= kind
                                 , "videoId" .= playlistItemVideoId item
                                 ]
                       ]
            ]
+      where kind = "youtube#video" :: String
 
-createPlaylists' :: [Playlist] -> [Tournament] -> UserCredentials -> IO (Tournament -> Playlist)
-createPlaylists' _ [] _ = return (\_ -> error "no tournament")
-createPlaylists' ps ts c = ((M.!) . M.fromList) <$> mapM (\t -> (,) t <$> createPlaylist' ps t c) ts
+createPlaylists' :: [Playlist] -> [Tournament] -> Client (Tournament -> Playlist)
+createPlaylists' _ []  = return (\_ -> error "no tournament")
+createPlaylists' ps ts = ((M.!) . M.fromList) <$> mapM (\t -> (,) t <$> createPlaylist' ps t) ts
 
-createPlaylist' :: [Playlist] -> Tournament -> UserCredentials -> IO Playlist
-createPlaylist' ps tournament creds = do
+createPlaylist' :: [Playlist] -> Tournament -> Client Playlist
+createPlaylist' ps tournament = do
+  needsUserCredentials
   let previous = find (samePlaylist playlist) ps
   case previous of
     Just found -> return found
-    Nothing    -> post body creds url
-  where url = mkUrl "POST https://www.googleapis.com/youtube/v3/playlists" parameters
-        parameters = [ ("part", "contentDetails,snippet,status") ]
-        playlist = mkPlaylist tournament
-        body = Just playlist
+    Nothing    -> post "/playlists" parameters body
+      where parameters = [ ("part", "contentDetails,snippet,status") ]
+            body = Just playlist
+  where playlist = mkPlaylist tournament
 
 samePlaylist :: Playlist -> Playlist -> Bool
 samePlaylist p1 p2 = playlistTags p1 == playlistTags p2
@@ -287,7 +281,7 @@ hashURL = show . sha1 . C.pack
 sha1 :: ByteString -> Digest SHA1
 sha1 = hash
 
-deletePlaylist :: YouTubeId -> IO Bool
-deletePlaylist pId = getUserCredentials >>= flip delete url
-  where url = mkUrl "DELETE https://www.googleapis.com/youtube/v3/playlists" parameters
-        parameters = [ ("id", pId) ]
+deletePlaylist :: YouTubeId -> Client Bool
+deletePlaylist pId = do
+  needsUserCredentials
+  delete "/playlists" [ ("id", pId) ]
