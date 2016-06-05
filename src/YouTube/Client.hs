@@ -31,7 +31,7 @@ import           Data.Aeson                       hiding (Result)
 import           Data.Aeson.Types                 (typeMismatch)
 import           Data.ByteString                  (ByteString)
 import qualified Data.ByteString.Char8    as C    (pack, unpack)
-import           Data.List                        (unfoldr)
+import           Data.List                        (unfoldr, isPrefixOf)
 import qualified Data.Text.Lazy           as LT   (pack)
 import qualified Data.Traversable         as T    (mapM)
 import           Network.HTTP.Simple
@@ -77,7 +77,12 @@ postForm u ps payload = mkURL "POST" u ps >>= httpRoutine (setRequestBodyURLEnco
 mkURL :: String -> URL -> Parameters -> Client URL
 mkURL verb u ps = do
   key <- apiKey <$> RM.ask
-  return $ mkUrl (verb ++ " https://www.googleapis.com/youtube/v3" ++ u) (("key", key) : ps)
+  return $ mkUrl (verb ++ " " ++ fullURL u) (("key", key) : ps)
+
+fullURL :: URL -> URL
+fullURL url  | "http" `isPrefixOf` url = url
+fullURL path | otherwise =
+  "https://www.googleapis.com/youtube/v3" ++ path
 
 delete :: URL -> Parameters -> Client Bool
 delete url parameters = do
