@@ -35,56 +35,15 @@ import Data.ByteString.Char8 as C (pack)
 import Data.List                  (find)
 import Data.Map              as M (empty, fromList, (!))
 
-browseMyChannel :: Int -> Client [Playlist]
-browseMyChannel count = do
-  myChannel <- channelId <$> findMyChannel
-  browseChannel myChannel count
-
-findChannel :: String -> Client Channel
-findChannel name =
-  firstChannel <$> get "/channels" parameters
-    where parameters = [ ("part",       "id,contentDetails" )
-                       , ("forUsername", name)
-                       ]
-
-findMyChannel :: Client Channel
-findMyChannel = do
-  needsUserCredentials
-  firstChannel <$> get "/channels" parameters
-    where parameters = [ ("part", "id,contentDetails"), ("mine", "true") ]
-
-firstChannel :: Items Channel -> Channel
-firstChannel (Items cs) = head cs
-
 browseChannel :: YouTubeId -> Int -> Client [Playlist]
 browseChannel cId count = do
   unwrap <$> paginate (browseChannelHandler cId) count
     where unwrap (Playlists playlists) = playlists
 
-browseChannelHandler :: YouTubeId -> PageHandler Playlists
-browseChannelHandler cId page =
-  get "/playlists" (withPage page parameters)
-    where part       = "contentDetails,snippet"
-          parameters = [ ("part"      , part)
-                       , ("channelId" , cId )
-                       ]
-
-listPlaylist :: YouTubeId -> Int -> Client PlaylistContent
-listPlaylist pId count = do
-  needsUserCredentials
-  paginate (listPlaylistHandler pId) count
-
-listPlaylistHandler :: YouTubeId -> PageHandler PlaylistContent
-listPlaylistHandler pId page = do
-  get "/playlistItems" (withPage page parameters)
-    where part       = "contentDetails,snippet"
-          parameters = [ ("part"      , part)
-                       , ("playlistId", pId )
-                       ]
-
-withPage :: Page -> Parameters -> Parameters
-withPage (Page token count) parameters =
-  ("pageToken" , show token) : ("maxResults", show count) : parameters
+browseMyChannel :: Int -> Client [Playlist]
+browseMyChannel count = do
+  myChannel <- channelId <$> findMyChannel
+  browseChannel myChannel count
 
 createPlaylist :: Tournament -> Client Playlist
 createPlaylist t = do
@@ -97,12 +56,58 @@ createPlaylists ts = do
   playlists <- browseMyChannel 1000
   createPlaylists' playlists ts
 
+deletePlaylist :: YouTubeId -> Client Bool
+deletePlaylist pId = do
+  needsUserCredentials
+  delete "/playlists" [ ("id", pId) ]
+
+findChannel :: String -> Client Channel
+findChannel name =
+  firstChannel <$> get "/channels" parameters
+    where parameters = [ ("part",       "id,contentDetails")
+                       , ("forUsername", name              )
+                       ]
+
 insertVideo :: YouTubeId -> YouTubeId -> Client Success
 insertVideo vId pId = do
   needsUserCredentials
   post "/playlistItems" parameters body
     where parameters = [ ("part", "snippet") ]
           body = Just (PlaylistItem vId pId)
+
+listPlaylist :: YouTubeId -> Int -> Client PlaylistContent
+listPlaylist pId count = do
+  needsUserCredentials
+  paginate (listPlaylistHandler pId) count
+
+findMyChannel :: Client Channel
+findMyChannel = do
+  needsUserCredentials
+  firstChannel <$> get "/channels" parameters
+    where parameters = [ ("part", "id,contentDetails"), ("mine", "true") ]
+
+firstChannel :: Items Channel -> Channel
+firstChannel (Items cs) = head cs
+
+browseChannelHandler :: YouTubeId -> PageHandler Playlists
+browseChannelHandler cId page =
+  get "/playlists" (withPage page parameters)
+    where part       = "contentDetails,snippet"
+          parameters = [ ("part"      , part)
+                       , ("channelId" , cId )
+                       ]
+
+listPlaylistHandler :: YouTubeId -> PageHandler PlaylistContent
+listPlaylistHandler pId page = do
+  get "/playlistItems" (withPage page parameters)
+    where part       = "contentDetails,snippet"
+          parameters = [ ("part"      , part)
+                       , ("playlistId", pId )
+                       ]
+
+withPage :: Page -> Parameters -> Parameters
+withPage (Page token count) parameters =
+  ("pageToken" , show token) : ("maxResults", show count) : parameters
 
 createPlaylists' :: [Playlist] -> [Tournament] -> Client (Tournament -> Playlist)
 createPlaylists' _ []  = return (\_ -> error "no tournament")
@@ -134,8 +139,3 @@ hashURL = show . sha1 . C.pack
 
 sha1 :: ByteString -> Digest SHA1
 sha1 = hash
-
-deletePlaylist :: YouTubeId -> Client Bool
-deletePlaylist pId = do
-  needsUserCredentials
-  delete "/playlists" [ ("id", pId) ]
