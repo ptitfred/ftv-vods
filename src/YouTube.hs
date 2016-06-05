@@ -11,11 +11,12 @@ module YouTube
     , findChannel
     , insertVideo
     , listPlaylist
+    , listVideos
       -- Reexport Models
     , Channel(..)
     , Playlist(..)
-    , PlaylistContent(..)
     , Video(..)
+    , Videos
     , YouTubeId
       -- Reexport Client utils
     , Client
@@ -29,7 +30,8 @@ import YouTube.Commons
 import YouTube.Client
 import YouTube.Models
 
-import Data.List      (find)
+import Data.Foldable  (toList)
+import Data.List      (find, intercalate)
 import Data.Map  as M (empty, fromList, (!))
 
 browseChannel :: YouTubeId -> Int -> Client [Playlist]
@@ -73,14 +75,30 @@ insertVideo v p = do
   needsUserCredentials
   post "/playlistItems" parameters body
     where parameters = [ ("part", "snippet") ]
-          body = Just (PlaylistItem vId pId)
+          body = Just (PlaylistItem "" vId pId 0)
           vId = videoId v
           pId = playlistId p
 
-listPlaylist :: YouTubeId -> Int -> Client PlaylistContent
+listPlaylist :: YouTubeId -> Int -> Client Videos
 listPlaylist pId count = do
   needsUserCredentials
-  paginate (listPlaylistHandler pId) count
+  ids <- (map playlistItemVideoId).toList <$> paginate (listPlaylistHandler pId) count
+  listVideos ids
+
+type Videos = [Video]
+
+listVideos :: [YouTubeId] -> Client Videos
+listVideos vIds = toList <$> listVideosBatch (take 50 vIds) (drop 50 vIds)
+
+listVideosBatch :: [YouTubeId] -> [YouTubeId] -> Client (Items Video)
+listVideosBatch [] _ = return mempty
+listVideosBatch ids otherIds = do
+  let part       = "contentDetails,snippet"
+      parameters = [ ("part", part               )
+                   , ("id",   intercalate "," ids)
+                   ]
+  batch <- get "/videos" parameters
+  mappend batch <$> listVideosBatch (take 50 otherIds) (drop 50 otherIds)
 
 findMyChannel :: Client Channel
 findMyChannel =

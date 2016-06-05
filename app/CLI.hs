@@ -39,7 +39,7 @@ type Serie = (Tournament, [Video])
 
 filterOldVideos :: (Tournament -> Playlist) -> Serie -> Client Serie
 filterOldVideos playlists (tournament, vs) = do
-  oldVideos <- videos <$> listPlaylist (playlistId $ playlists tournament) 1000
+  oldVideos <- listPlaylist (playlistId $ playlists tournament) 1000
   return (tournament, vs \\ oldVideos)
 
 lastTournaments :: Int -> Client [Serie]
@@ -57,7 +57,7 @@ foundTournaments (Just dataset) = group tournamentsWithVideos
 videosWithCasters :: Int -> Client ()
 videosWithCasters count = do
   pId <- uploadsPlaylistId
-  videos <$> listPlaylist pId count >>= mapM_ (liftIO.videoWithCasters)
+  listPlaylist pId count >>= mapM_ (liftIO.videoWithCasters)
 
 match :: Int -> Client ()
 match count = getDataset count >>= liftIO.printMatchings
@@ -67,7 +67,7 @@ printMatchings (Just dataset) = mapM_ printMatching (computeMatchings dataset)
 printMatchings  Nothing       = return ()
 
 computeMatchings :: Dataset -> [(Video, Matching)]
-computeMatchings (tournaments, playlist) = map match' (videos playlist)
+computeMatchings (tournaments, videos) = map match' videos
   where match' v = (v, matchTournaments tournaments v)
 
 printMatching :: (Video, Matching) -> IO ()
@@ -92,7 +92,7 @@ videoWithCasters video = do
 uploadsPlaylistId :: Client YouTubeId
 uploadsPlaylistId = channelUploadPlaylist <$> findChannel "FroggedTV"
 
-type Dataset = ([Tournament], PlaylistContent)
+type Dataset = ([Tournament], Videos)
 
 getDataset :: Int -> Client (Maybe Dataset)
 getDataset count = do
