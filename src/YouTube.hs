@@ -19,13 +19,12 @@ module YouTube
     , YouTubeId
       -- Reexport Client utils
     , Client
-    , Credentials
     , runClient
     , liftIO
     ) where
 
 import Helpers (hashURL)
-import Model
+import Model (Tournament(..))
 import YouTube.Commons
 import YouTube.Client
 import YouTube.Models
