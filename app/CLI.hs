@@ -5,7 +5,7 @@ import Matcher
 import Model
 import YouTube
 
-import Data.List (intercalate, groupBy, (\\))
+import Data.List (intercalate, groupBy, sortOn, (\\))
 import Data.Maybe (catMaybes)
 import System.Environment (getArgs)
 
@@ -50,7 +50,7 @@ foundTournaments  Nothing       = []
 foundTournaments (Just dataset) = group tournamentsWithVideos
   where tournamentsWithVideos = catMaybes $ map extractTournament matchings
         matchings = computeMatchings dataset
-        group ts = map (\tvs -> (fst . head $ tvs, map snd tvs)) $ groupBy (\p1 p2 -> fst p1 == fst p2) ts
+        group ts = map (\tvs -> (fst . head $ tvs, map snd tvs)) $ groupBy (\p1 p2 -> fst p1 == fst p2) $ sortOn fst ts
         extractTournament (v, (Perfect t)) = Just (t, v)
         extractTournament  _               = Nothing
 
