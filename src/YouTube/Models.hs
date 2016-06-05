@@ -153,6 +153,20 @@ instance FromJSON a => FromJSON (Items a) where
   parseJSON (Object o) = Items <$> o .: "items"
   parseJSON invalid = typeMismatch "items" invalid
 
+instance Monoid (Items a) where
+  mempty = Items []
+  mappend (Items items1) (Items items2) = Items $ items1 ++ items2
+
+instance Show a => Show (Items a) where
+  show (Items xs) = show xs
+
+instance Functor Items where
+  fmap f (Items xs) = Items $ fmap f xs
+
+instance Foldable Items where
+  foldMap f (Items xs) = foldMap f xs
+  foldr f z (Items xs) = foldr f z xs
+
 newtype Success = Success Bool deriving (Show)
 
 instance FromJSON Success where
