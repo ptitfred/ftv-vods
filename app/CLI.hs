@@ -23,7 +23,7 @@ present = not.null
 
 autoPlaylists :: Int -> Client ()
 autoPlaylists count = do
-  tournamentsWithVideos <- lastTournaments count
+  tournamentsWithVideos <- reverse <$> lastTournaments count
   let tournaments = map fst tournamentsWithVideos
   playlists <- createPlaylists tournaments
   tournamentsWithNewVideos <- onlyNewVideos playlists tournamentsWithVideos
