@@ -2,28 +2,29 @@ module Matcher
     ( matchTournaments
     ) where
 
+import Helpers (Parenting, parents)
 import Model
 import YouTube
 
 import qualified Control.Applicative as A ((<|>))
-import Data.List (sortOn)
-import Data.Maybe (fromJust, isJust)
-import Text.EditDistance
-import Text.Parsec
+import           Data.List                (sortOn)
+import           Data.Maybe               (fromJust, isJust)
+import           Text.EditDistance
+import           Text.Parsec
 
 matchTournaments :: [Tournament] -> Video -> Matching
-matchTournaments tournaments video = analyze scores
+matchTournaments tournaments video = analyze (parents tournaments) scores
   where scores = bestScores . map (scoreTournament video) $ tournaments
         bestScores = top5 . byScore . positives . map fromJust . filter isJust
         top5 = take 10
         positives = filter ((>0).ofScore)
         byScore = sortOn (negate.ofScore)
 
-analyze :: Scores -> Matching
-analyze [] = NoMatch
-analyze scores | perfectCount == 1 = Perfect (ofTournament $ head perfects)
-               | perfectCount > 1  = Approx perfects
-               | otherwise         = Approx scores
+analyze :: Parenting -> Scores -> Matching
+analyze _ [] = NoMatch
+analyze toParent scores | perfectCount == 1 = Perfect (toParent $ ofTournament $ head perfects)
+                        | perfectCount > 1  = Approx perfects
+                        | otherwise         = Approx scores
   where perfects = filter (isPerfectScore.ofScore) scores
         isPerfectScore score = score == 1
         perfectCount = length perfects
