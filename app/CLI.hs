@@ -27,20 +27,37 @@ autoPlaylists count = do
   let tournaments = map fst tournamentsWithVideos
   playlists <- createPlaylists tournaments
   tournamentsWithNewVideos <- onlyNewVideos playlists tournamentsWithVideos
-  let items = [(v, playlists t) | (t, vs) <- tournamentsWithNewVideos, v <- vs]
-  mapM_ (uncurry insertVideo) items
+  let items = [(v, idx, playlists t) | (t, vs) <- tournamentsWithNewVideos, (v, idx) <- vs]
+  mapM_ (\(v, idx, p) -> insertVideo v idx p) items
   mapM_ (liftIO.printPlaylist) (map playlists tournaments)
     where printPlaylist = putStrLn.playlistTitle
 
-onlyNewVideos :: (Tournament -> Playlist) -> [Serie] -> Client [Serie]
-onlyNewVideos ps = mapM (filterOldVideos ps)
+onlyNewVideos :: (Tournament -> Playlist) -> [Serie] -> Client [SerieUpdate]
+onlyNewVideos ps = mapM (detectPlaylistUpdate ps . sortSerie)
 
 type Serie = (Tournament, [Video])
+type SerieUpdate = (Tournament, [(Video, Int)])
 
-filterOldVideos :: (Tournament -> Playlist) -> Serie -> Client Serie
-filterOldVideos playlists (tournament, vs) = do
+sortSerie :: Serie -> Serie
+sortSerie (t, vs) = (t, sortOn videoPublishDate vs)
+
+detectPlaylistUpdate :: (Tournament -> Playlist) -> Serie -> Client SerieUpdate
+detectPlaylistUpdate playlists (tournament, vs) = do
   oldVideos <- listPlaylist (playlistId $ playlists tournament) 1000
-  return (tournament, vs \\ oldVideos)
+  let newVideos = reverse $ vs \\ oldVideos
+  let newPositions = decorate (findInsertPosition oldVideos) newVideos
+  return (tournament, newPositions)
+
+decorate :: (a -> b) -> [a] -> [(a, b)]
+decorate f = map (\x -> (x, f x))
+
+findInsertPosition :: [Video] -> Video -> Int
+findInsertPosition [] _ = 0
+findInsertPosition vs v = snd $ head $ dropWhile (\(v', _) -> v' `before` v) $ withIndex vs
+  where v1 `before` v2 = videoPublishDate v1 < videoPublishDate v2
+
+withIndex :: [a] -> [(a, Int)]
+withIndex xs = zip xs [0..]
 
 lastTournaments :: Int -> Client [Serie]
 lastTournaments count = foundTournaments <$> getDataset count
@@ -67,8 +84,7 @@ printMatchings (Just dataset) = mapM_ printMatching (computeMatchings dataset)
 printMatchings  Nothing       = return ()
 
 computeMatchings :: Dataset -> [(Video, Matching)]
-computeMatchings (tournaments, videos) = map match' videos
-  where match' v = (v, matchTournaments tournaments v)
+computeMatchings (tournaments, videos) = decorate (matchTournaments tournaments) videos
 
 printMatching :: (Video, Matching) -> IO ()
 printMatching (video, (Perfect tournament)) = do
