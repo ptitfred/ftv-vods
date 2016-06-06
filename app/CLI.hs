@@ -1,5 +1,6 @@
 module Main where
 
+import Helpers (decorate)
 import Liquipedia
 import Matcher
 import Model
@@ -47,9 +48,6 @@ detectPlaylistUpdate playlists (tournament, vs) = do
   let newVideos = reverse $ vs \\ oldVideos
   let newPositions = decorate (findInsertPosition oldVideos) newVideos
   return (tournament, newPositions)
-
-decorate :: (a -> b) -> [a] -> [(a, b)]
-decorate f = map (\x -> (x, f x))
 
 findInsertPosition :: [Video] -> Video -> Int
 findInsertPosition [] _ = 0
