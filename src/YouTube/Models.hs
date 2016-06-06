@@ -7,7 +7,7 @@ module YouTube.Models
     , Playlist(..)
     , Playlists(..)
     , PlaylistItem(..)
-    , PlaylistContent(..)
+    , PlaylistContent
     , Success(..)
     , Tags(..)
     , Video(..)
@@ -41,12 +41,7 @@ data Playlist = Playlist { playlistId          :: YouTubeId
                          , playlistTags        :: Tags
                          } deriving (Show)
 
-data PlaylistContent = PlaylistContent { videos :: [Video] }
-
--- Implement Monoid to let concat queries
-instance Monoid PlaylistContent where
-  mempty        = PlaylistContent []
-  mappend p1 p2 = PlaylistContent (videos p1 ++ videos p2)
+type PlaylistContent = Items PlaylistItem
 
 data Video = Video { videoTitle       :: String
                    , videoId          :: YouTubeId
@@ -54,17 +49,19 @@ data Video = Video { videoTitle       :: String
                    , videoCasters     :: [Caster]
                    , videoURL         :: URL
                    , videoPublishDate :: UTCTime
-                   }
+                   } deriving (Show)
 
 instance FromJSON Video where
   parseJSON (Object o) = do
     snippet        <- o .: "snippet"
-    contentDetails <- o .: "contentDetails"
     mkVideoDetails <$> snippet .: "title"
-                   <*> contentDetails .: "videoId"
+                   <*> o       .: "id"
                    <*> snippet .: "description"
                    <*> snippet .: "publishedAt"
   parseJSON invalid = typeMismatch "Video" invalid
+
+instance Eq Video where
+  v1 == v2 = videoId v1 == videoId v2
 
 mkVideoDetails :: String -> YouTubeId -> String -> UTCTime -> Video
 mkVideoDetails title vid description publishDate =
@@ -114,10 +111,6 @@ instance FromJSON Playlist where
              <*> snippet .:? "tags" .!= Tags []
   parseJSON invalid = typeMismatch "Playlist" invalid
 
-instance FromJSON PlaylistContent where
-  parseJSON (Object o) = PlaylistContent <$> o .: "items"
-  parseJSON invalid = typeMismatch "PlaylistContent" invalid
-
 newtype Playlists = Playlists [Playlist] deriving (Show)
 
 instance Monoid Playlists where
@@ -128,9 +121,21 @@ instance FromJSON Playlists where
   parseJSON (Object o) = Playlists <$> o .: "items"
   parseJSON invalid = typeMismatch "[Playlist]" invalid
 
-data PlaylistItem = PlaylistItem { playlistItemVideoId :: YouTubeId
+data PlaylistItem = PlaylistItem { playlistItemId         :: YouTubeId
+                                 , playlistItemVideoId    :: YouTubeId
                                  , playlistItemPlaylistId :: YouTubeId
-                                 }
+                                 , playlistItemPosition   :: Int
+                                 } deriving (Show)
+
+instance FromJSON PlaylistItem where
+  parseJSON (Object o) = do
+    snippet    <- o .: "snippet"
+    resourceId <- snippet .: "resourceId"
+    PlaylistItem <$> o          .: "id"
+                 <*> resourceId .: "videoId"
+                 <*> snippet    .: "playlistId"
+                 <*> snippet    .: "position"
+  parseJSON invalid = typeMismatch "PlaylistItem" invalid
 
 instance ToJSON PlaylistItem where
   toJSON item =
@@ -140,6 +145,7 @@ instance ToJSON PlaylistItem where
                          object [ "kind"    .= kind
                                 , "videoId" .= playlistItemVideoId item
                                 ]
+                      , "position" .= playlistItemPosition item
                       ]
            ]
       where kind = "youtube#video" :: String
@@ -149,6 +155,20 @@ newtype Items a = Items [a]
 instance FromJSON a => FromJSON (Items a) where
   parseJSON (Object o) = Items <$> o .: "items"
   parseJSON invalid = typeMismatch "items" invalid
+
+instance Monoid (Items a) where
+  mempty = Items []
+  mappend (Items items1) (Items items2) = Items $ items1 ++ items2
+
+instance Show a => Show (Items a) where
+  show (Items xs) = show xs
+
+instance Functor Items where
+  fmap f (Items xs) = Items $ fmap f xs
+
+instance Foldable Items where
+  foldMap f (Items xs) = foldMap f xs
+  foldr f z (Items xs) = foldr f z xs
 
 newtype Success = Success Bool deriving (Show)
 
