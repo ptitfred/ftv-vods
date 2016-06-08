@@ -5,9 +5,11 @@ import Liquipedia
 import Matcher
 import Model
 import YouTube
+import PlaylistManager
 
-import Data.List (intercalate, groupBy, sortOn, (\\))
-import Data.Maybe (catMaybes)
+import Control.Monad      (forM_)
+import Data.List          (intercalate, groupBy, sortOn)
+import Data.Maybe         (catMaybes)
 import System.Environment (getArgs)
 
 main :: IO ()
@@ -27,35 +29,38 @@ autoPlaylists count = do
   tournamentsWithVideos <- reverse <$> lastTournaments count
   let tournaments = map fst tournamentsWithVideos
   playlists <- createPlaylists tournaments
-  tournamentsWithNewVideos <- onlyNewVideos playlists tournamentsWithVideos
-  let items = [(v, idx, playlists t) | (t, vs) <- tournamentsWithNewVideos, (v, idx) <- vs]
-  mapM_ (\(v, idx, p) -> insertVideo v idx p) items
-  mapM_ (liftIO.printPlaylist) (map playlists tournaments)
-    where printPlaylist = putStrLn.playlistTitle
+  updates <- onlyNewVideos playlists tournamentsWithVideos
+  forM_ updates (updateTournament playlists)
+
+type Serie       = (Tournament, [Video])
+type SerieUpdate = (Tournament, [(Video, Position)])
+
+updateTournament :: (Tournament -> Playlist) -> SerieUpdate -> Client ()
+updateTournament playlists (tournament, videos) = do
+  let playlist = playlists tournament
+  printPlaylist playlist
+  liftIO.putStrLn $ "  " ++ (count videos)
+  mapM_ (\(v, idx) -> insertVideo v idx playlist) videos
+    where count []  = "no new video"
+          count [_] = "1 new video"
+          count xs  = (show $ length xs) ++ " new videos"
+          printPlaylist = liftIO.putStrLn.playlistTitle
 
 onlyNewVideos :: (Tournament -> Playlist) -> [Serie] -> Client [SerieUpdate]
-onlyNewVideos ps = mapM (detectPlaylistUpdate ps . sortSerie)
-
-type Serie = (Tournament, [Video])
-type SerieUpdate = (Tournament, [(Video, Int)])
+onlyNewVideos ps = mapM (detectSerieUpdate ps)
 
 sortSerie :: Serie -> Serie
 sortSerie (t, vs) = (t, sortOn videoPublishDate vs)
 
-detectPlaylistUpdate :: (Tournament -> Playlist) -> Serie -> Client SerieUpdate
-detectPlaylistUpdate playlists (tournament, vs) = do
-  oldVideos <- listPlaylist (playlistId $ playlists tournament) 1000
-  let newVideos = reverse $ vs \\ oldVideos
-  let newPositions = decorate (findInsertPosition oldVideos) newVideos
-  return (tournament, newPositions)
+detectSerieUpdate :: (Tournament -> Playlist) -> Serie -> Client SerieUpdate
+detectSerieUpdate playlists (t, vs) = do
+  update <- detectPlaylistUpdate (playlists t) vs
+  return (t, update)
 
-findInsertPosition :: [Video] -> Video -> Int
-findInsertPosition [] _ = 0
-findInsertPosition vs v = snd $ head $ dropWhile (\(v', _) -> v' `before` v) $ withIndex vs
-  where v1 `before` v2 = videoPublishDate v1 < videoPublishDate v2
-
-withIndex :: [a] -> [(a, Int)]
-withIndex xs = zip xs [0..]
+detectPlaylistUpdate :: Playlist -> [Video] -> Client [(Video, Position)]
+detectPlaylistUpdate playlist vs = do
+  oldVideos <- listPlaylist (playlistId playlist) 1000
+  return $ findInsertPositions oldVideos vs
 
 lastTournaments :: Int -> Client [Serie]
 lastTournaments count = foundTournaments <$> getDataset count
