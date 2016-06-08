@@ -18,7 +18,7 @@ genCasterName :: Gen Name
 genCasterName = listOf1 $ elements alphaNums
 
 alphaNums :: [Char]
-alphaNums = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
+alphaNums = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "-_@"
 
 newtype WhitespaceChar = WhitespaceChar Char deriving (Eq, Show)
 

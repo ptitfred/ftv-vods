@@ -13,7 +13,7 @@ import Control.Monad              (void)
 import Crypto.Hash                (Digest, SHA1, hash)
 import Data.ByteString            (ByteString)
 import Data.ByteString.Char8 as C (pack)
-import Data.Char                  (isAlphaNum)
+import Data.Char                  (isSpace)
 import Data.List                  (find, intercalate)
 import Data.List.Split            (splitOn, wordsBy)
 import Data.Map.Lazy              (fromList, (!))
@@ -28,8 +28,7 @@ extractCasters casters description = catMaybes knownCasters
         names        = concatMap casterPseudos casters
 
 tokenize :: String -> [String]
-tokenize = wordsBy sep
-  where sep = not.isAlphaNum
+tokenize = wordsBy isSpace
 
 nameToCaster :: [Caster] -> Name -> Maybe Caster
 nameToCaster casters name = find (isCaster name) casters
