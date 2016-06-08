@@ -1,6 +1,13 @@
 import qualified PlaylistManagerTest
 import qualified HelpersTest
 
-main = do
-  PlaylistManagerTest.main
-  HelpersTest.main
+import Test.Tasty
+
+main :: IO ()
+main = defaultMain suite
+
+suite :: TestTree
+suite = testGroup "All"
+  [ PlaylistManagerTest.suite
+  , HelpersTest.suite
+  ]

@@ -1,15 +1,16 @@
-{-# LANGUAGE TemplateHaskell #-}
-
-module PlaylistManagerTest (main) where
+module PlaylistManagerTest (suite) where
 
 import PlaylistManager
 import YouTube (Video(..), YouTubeId)
 
-import Test.QuickCheck
-import Test.QuickCheck.All
 import Data.Time.Clock (UTCTime(..), DiffTime(..), secondsToDiffTime)
 import Data.Time.Calendar (Day, fromGregorian)
 import Data.List (sortOn)
+
+import Test.QuickCheck
+
+import Test.Tasty
+import Test.Tasty.QuickCheck as QC
 
 year  = choose (2012, 2016)
 month = choose (1, 12)
@@ -83,5 +84,13 @@ prop_insertionShouldReversed :: SortedVideos -> Bool
 prop_insertionShouldReversed (SortedVideos vs) =
   findInsertPositions [] vs == zip (reverse vs) (repeat 0)
 
-return []
-main = $(quickCheckAll)
+suite :: TestTree
+suite = testGroup "PlaylistManager"
+  [ QC.testProperty "empty playlist" prop_emptyPlaylist
+  , QC.testProperty "doublons" prop_avoidDoublons
+  , QC.testProperty "previous will be first" prop_previousVideoWillBeFirst
+  , QC.testProperty "2 previous will be first" prop_previous2VideoWillBeFirst
+  , QC.testProperty "next will be last" prop_nextVideoWillBeLast
+  , QC.testProperty "2 next will be last" prop_next2VideoWillBeLast
+  , QC.testProperty "insertion backward" prop_insertionShouldReversed
+  ]

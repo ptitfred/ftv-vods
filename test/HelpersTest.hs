@@ -1,14 +1,15 @@
-{-# LANGUAGE TemplateHaskell #-}
-
-module HelpersTest (main) where
+module HelpersTest (suite) where
 
 import Helpers
 import Model
 
 import Data.List (intercalate)
+
 import Test.QuickCheck
-import Test.QuickCheck.All
 import Test.QuickCheck.Modifiers
+
+import Test.Tasty
+import Test.Tasty.QuickCheck as QC
 
 instance Eq Caster where
   c1 == c2 = casterPseudo c1 == casterPseudo c2
@@ -35,5 +36,7 @@ prop_extractCasters_id (WhitespaceChar sep) casters | not $ sep `elem` alphaNums
   where text = join sep casters
         join sep casters = intercalate (sep:[]) $ map casterPseudo casters
 
-return []
-main = $(quickCheckAll)
+suite :: TestTree
+suite = testGroup "Helpers"
+  [ QC.testProperty "extract casters" prop_extractCasters_id
+  ]
