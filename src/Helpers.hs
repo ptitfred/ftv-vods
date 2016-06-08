@@ -21,7 +21,11 @@ import Data.Maybe                 (catMaybes, fromMaybe)
 import System.Process             (createProcess, proc, StdStream(CreatePipe), std_out, std_err)
 
 extractCasters :: [Caster] -> String -> [Caster]
-extractCasters casters description = catMaybes $ map (nameToCaster casters) $ filter (`elem` (concatMap casterPseudos casters)) $ tokenize description
+extractCasters casters description = catMaybes knownCasters
+  where knownCasters = map (nameToCaster casters) knownNames
+        knownNames   = filter (`elem` names) tokens
+        tokens       = tokenize description
+        names        = concatMap casterPseudos casters
 
 tokenize :: String -> [String]
 tokenize = wordsBy sep
