@@ -39,15 +39,12 @@ mkVideo vid publishDate = Video "" vid "" [] "" publishDate
 instance Arbitrary Video where
   arbitrary = mkVideo <$> youtubeId <*> arbitrary
 
-newtype SortedVideos = SortedVideos [Video] deriving (Show)
-
-instance Arbitrary SortedVideos where
-  arbitrary = do
+sortedVideos :: Gen [Video]
+sortedVideos = do
     v1 <- arbitrary
     v2 <- arbitrary
     vs <- listOf arbitrary
-    let videos = sortOn videoPublishDate $ v1 : v2 : vs
-    return $ SortedVideos videos
+    return $ sortOn videoPublishDate $ v1 : v2 : vs
 
 prop_emptyPlaylist :: Video -> Bool
 prop_emptyPlaylist v = findInsertPositions [] [v] == [(v, 0)]
@@ -55,34 +52,29 @@ prop_emptyPlaylist v = findInsertPositions [] [v] == [(v, 0)]
 prop_avoidDoublons :: [Video] -> Bool
 prop_avoidDoublons vs = findInsertPositions vs vs == []
 
-prop_previousVideoWillBeFirst :: SortedVideos -> Bool
-prop_previousVideoWillBeFirst (SortedVideos vs) =
-  findInsertPositions vs' [v] == [(v, 0)]
-    where vs' = tail vs
-          v   = head vs
+prop_previousVideoWillBeFirst :: Property
+prop_previousVideoWillBeFirst = forAll sortedVideos prop
+  where prop (v:vs) = findInsertPositions vs [v] == [(v, 0)]
 
-prop_previous2VideoWillBeFirst :: SortedVideos -> Bool
-prop_previous2VideoWillBeFirst (SortedVideos vs) =
-  findInsertPositions vs' [v1, v2] == [(v2, 0), (v1, 0)]
-    where vs'      = drop 2 vs
-          [v1, v2] = take 2 vs
+prop_previous2VideoWillBeFirst :: Property
+prop_previous2VideoWillBeFirst = forAll sortedVideos prop
+  where prop (v1:v2:vs) = findInsertPositions vs [v1, v2] == [(v2, 0), (v1, 0)]
 
-prop_nextVideoWillBeLast :: SortedVideos -> Bool
-prop_nextVideoWillBeLast (SortedVideos vs) =
-  findInsertPositions vs' [v] == [(v, length vs')]
-    where vs' = init vs
-          v   = last vs
+prop_nextVideoWillBeLast :: Property
+prop_nextVideoWillBeLast = forAll sortedVideos prop
+  where prop vs = findInsertPositions (init vs) [last vs] == [(last vs, length $ init vs)]
 
-prop_next2VideoWillBeLast :: SortedVideos -> Bool
-prop_next2VideoWillBeLast (SortedVideos vs) =
-  findInsertPositions vs' [v1, v2] == [(v2, length vs'), (v1, length vs')]
-    where vs' = init $ init vs
-          v1  = last $ init vs
-          v2  = last vs
+prop_next2VideoWillBeLast :: Property
+prop_next2VideoWillBeLast = forAll sortedVideos (\vs ->
+         let vs' = init $ init vs
+             v1  = last $ init vs
+             v2  = last vs
+         in findInsertPositions vs' [v1, v2] == [(v2, length vs'), (v1, length vs')]
+        )
 
-prop_insertionShouldReversed :: SortedVideos -> Bool
-prop_insertionShouldReversed (SortedVideos vs) =
-  findInsertPositions [] vs == zip (reverse vs) (repeat 0)
+prop_insertionShouldReversed :: Property
+prop_insertionShouldReversed = forAll sortedVideos prop
+  where prop vs = findInsertPositions [] vs == zip (reverse vs) (repeat 0)
 
 suite :: TestTree
 suite = testGroup "PlaylistManager"
