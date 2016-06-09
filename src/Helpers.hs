@@ -13,7 +13,7 @@ import Control.Monad              (void)
 import Crypto.Hash                (Digest, SHA1, hash)
 import Data.ByteString            (ByteString)
 import Data.ByteString.Char8 as C (pack)
-import Data.Char                  (isAlphaNum)
+import Data.Char                  (isSpace)
 import Data.List                  (find, intercalate)
 import Data.List.Split            (splitOn, wordsBy)
 import Data.Map.Lazy              (fromList, (!))
@@ -21,11 +21,14 @@ import Data.Maybe                 (catMaybes, fromMaybe)
 import System.Process             (createProcess, proc, StdStream(CreatePipe), std_out, std_err)
 
 extractCasters :: [Caster] -> String -> [Caster]
-extractCasters casters description = catMaybes $ map (nameToCaster casters) $ filter (`elem` (concatMap casterPseudos casters)) $ tokenize description
+extractCasters casters description = catMaybes knownCasters
+  where knownCasters = map (nameToCaster casters) knownNames
+        knownNames   = filter (`elem` names) tokens
+        tokens       = tokenize description
+        names        = concatMap casterPseudos casters
 
 tokenize :: String -> [String]
-tokenize = wordsBy sep
-  where sep = not.isAlphaNum
+tokenize = wordsBy isSpace
 
 nameToCaster :: [Caster] -> Name -> Maybe Caster
 nameToCaster casters name = find (isCaster name) casters
