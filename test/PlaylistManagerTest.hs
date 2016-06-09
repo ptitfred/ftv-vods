@@ -39,12 +39,13 @@ mkVideo vid publishDate = Video "" vid "" [] "" publishDate
 instance Arbitrary Video where
   arbitrary = mkVideo <$> youtubeId <*> arbitrary
 
-sortedVideos :: Gen [Video]
-sortedVideos = do
-    v1 <- arbitrary
-    v2 <- arbitrary
-    vs <- listOf arbitrary
-    return $ sortOn videoPublishDate $ v1 : v2 : vs
+sortedVideos :: Int -> Gen [Video]
+sortedVideos min = (sortOn videoPublishDate) <$> listOfAtLeast min arbitrary
+
+listOfAtLeast :: Int -> Gen a -> Gen [a]
+listOfAtLeast m gen = sized $ \n ->
+  do k <- choose (0, 0 `max` n)
+     vectorOf (m+k) gen
 
 prop_emptyPlaylist :: Video -> Bool
 prop_emptyPlaylist v = findInsertPositions [] [v] == [(v, 0)]
@@ -53,27 +54,26 @@ prop_avoidDoublons :: [Video] -> Bool
 prop_avoidDoublons vs = findInsertPositions vs vs == []
 
 prop_previousVideoWillBeFirst :: Property
-prop_previousVideoWillBeFirst = forAll sortedVideos prop
+prop_previousVideoWillBeFirst = forAll (sortedVideos 1) prop
   where prop (v:vs) = findInsertPositions vs [v] == [(v, 0)]
 
 prop_previous2VideoWillBeFirst :: Property
-prop_previous2VideoWillBeFirst = forAll sortedVideos prop
+prop_previous2VideoWillBeFirst = forAll (sortedVideos 2) prop
   where prop (v1:v2:vs) = findInsertPositions vs [v1, v2] == [(v2, 0), (v1, 0)]
 
 prop_nextVideoWillBeLast :: Property
-prop_nextVideoWillBeLast = forAll sortedVideos prop
+prop_nextVideoWillBeLast = forAll (sortedVideos 1) prop
   where prop vs = findInsertPositions (init vs) [last vs] == [(last vs, length $ init vs)]
 
 prop_next2VideoWillBeLast :: Property
-prop_next2VideoWillBeLast = forAll sortedVideos (\vs ->
-         let vs' = init $ init vs
-             v1  = last $ init vs
-             v2  = last vs
-         in findInsertPositions vs' [v1, v2] == [(v2, length vs'), (v1, length vs')]
-        )
+prop_next2VideoWillBeLast = forAll (sortedVideos 2) $ \vs ->
+  let vs' = init $ init vs
+      v1  = last $ init vs
+      v2  = last vs
+  in findInsertPositions vs' [v1, v2] == [(v2, length vs'), (v1, length vs')]
 
 prop_insertionShouldReversed :: Property
-prop_insertionShouldReversed = forAll sortedVideos prop
+prop_insertionShouldReversed = forAll (sortedVideos 0) prop
   where prop vs = findInsertPositions [] vs == zip (reverse vs) (repeat 0)
 
 suite :: TestTree
