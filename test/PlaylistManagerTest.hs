@@ -40,7 +40,7 @@ instance Arbitrary Video where
   arbitrary = mkVideo <$> youtubeId <*> arbitrary
 
 sortedVideos :: Int -> Gen [Video]
-sortedVideos min = (sortOn videoPublishDate) <$> listOfAtLeast min arbitrary
+sortedVideos min = sortOn videoPublishDate <$> listOfAtLeast min arbitrary
 
 listOfAtLeast :: Int -> Gen a -> Gen [a]
 listOfAtLeast m gen = sized $ \n ->
