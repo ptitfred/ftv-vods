@@ -17,7 +17,7 @@ instance Eq Caster where
 genCasterName :: Gen Name
 genCasterName = listOf1 $ elements alphaNums
 
-alphaNums :: [Char]
+alphaNums :: String
 alphaNums = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "-_@"
 
 newtype WhitespaceChar = WhitespaceChar Char deriving (Eq, Show)
@@ -33,7 +33,7 @@ prop_extractCasters_id :: WhitespaceChar -> [Caster] -> Bool
 prop_extractCasters_id (WhitespaceChar sep) casters =
   extractCasters casters text == casters
     where text = join sep casters
-          join sep casters = intercalate (sep:[]) $ map casterPseudo casters
+          join sep casters = intercalate [sep] $ map casterPseudo casters
 
 suite :: TestTree
 suite = testGroup "Helpers"

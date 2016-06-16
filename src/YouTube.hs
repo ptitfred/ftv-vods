@@ -35,7 +35,7 @@ import Data.List      (find, intercalate)
 import Data.Map  as M (empty, fromList, (!))
 
 browseChannel :: YouTubeId -> Int -> Client [Playlist]
-browseChannel cId count = do
+browseChannel cId count =
   unwrap <$> paginate (browseChannelHandler cId) count
     where unwrap (Playlists playlists) = playlists
 
@@ -82,7 +82,7 @@ insertVideo v pos pl = do
 listPlaylist :: YouTubeId -> Int -> Client Videos
 listPlaylist pId count = do
   needsUserCredentials
-  ids <- (map playlistItemVideoId).toList <$> paginate (listPlaylistHandler pId) count
+  ids <- map playlistItemVideoId . toList <$> paginate (listPlaylistHandler pId) count
   listVideos ids
 
 type Videos = [Video]
@@ -117,7 +117,7 @@ browseChannelHandler cId page =
                        ]
 
 listPlaylistHandler :: YouTubeId -> PageHandler PlaylistContent
-listPlaylistHandler pId page = do
+listPlaylistHandler pId page =
   get "/playlistItems" (withPage page parameters)
     where part       = "contentDetails,snippet"
           parameters = [ ("part"      , part)

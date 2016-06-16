@@ -34,7 +34,7 @@ nameToCaster :: [Caster] -> Name -> Maybe Caster
 nameToCaster casters name = find (isCaster name) casters
 
 openBrowser :: URL -> IO ()
-openBrowser url = do
+openBrowser url =
   void $ createProcess (proc "xdg-open" [url]) { std_out = CreatePipe
                                                , std_err = CreatePipe
                                                }
@@ -61,4 +61,4 @@ carry :: Ord a => [(a, b)] -> (a -> b)
 carry = (!) . fromList
 
 parent :: URL -> URL
-parent = intercalate "/" . reverse . tail . reverse . splitOn "/"
+parent = intercalate "/" . init . splitOn "/"

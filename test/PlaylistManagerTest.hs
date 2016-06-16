@@ -27,14 +27,14 @@ instance Arbitrary DiffTime where
 instance Arbitrary UTCTime where
   arbitrary = UTCTime <$> arbitrary <*> arbitrary
 
-youtubeIdChars :: [Char]
+youtubeIdChars :: String
 youtubeIdChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['+', '-', '_', '=']
 
 youtubeId :: Gen String
 youtubeId = vectorOf 11 (elements youtubeIdChars)
 
 mkVideo :: YouTubeId -> UTCTime -> Video
-mkVideo vid publishDate = Video "" vid "" [] "" publishDate
+mkVideo vid = Video "" vid "" [] ""
 
 instance Arbitrary Video where
   arbitrary = mkVideo <$> youtubeId <*> arbitrary
@@ -50,7 +50,7 @@ prop_emptyPlaylist :: Video -> Bool
 prop_emptyPlaylist v = findInsertPositions [] [v] == [(v, 0)]
 
 prop_avoidDoublons :: [Video] -> Bool
-prop_avoidDoublons vs = findInsertPositions vs vs == []
+prop_avoidDoublons vs = null (findInsertPositions vs vs)
 
 prop_previousVideoWillBeFirst :: Property
 prop_previousVideoWillBeFirst = forAll sortedVideos prop

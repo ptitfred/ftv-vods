@@ -8,14 +8,14 @@ import YouTube
 
 import qualified Control.Applicative as A ((<|>))
 import           Data.List                (sortOn)
-import           Data.Maybe               (fromJust, isJust)
+import           Data.Maybe               (catMaybes)
 import           Text.EditDistance
 import           Text.Parsec
 
 matchTournaments :: [Tournament] -> Video -> Matching
 matchTournaments tournaments video = analyze (parents tournaments) scores
   where scores = bestScores . map (scoreTournament video) $ tournaments
-        bestScores = top5 . byScore . positives . map fromJust . filter isJust
+        bestScores = top5 . byScore . positives . catMaybes
         top5 = take 10
         positives = filter ((>0).ofScore)
         byScore = sortOn (negate.ofScore)
@@ -40,12 +40,12 @@ scoreTournament video tournament = with tournament <$> score (tournamentType tou
 matchDescription :: Video -> URL -> Maybe Score
 matchDescription video url = do
   someURL <- extractURL video
-  if (url == someURL)
+  if url == someURL
   then return 1
   else Nothing
 
 scoreSentences :: String -> String -> Maybe Score
-scoreSentences s1 s2 = Just $ matchingCount / (toRational $ length ws1)
+scoreSentences s1 s2 = Just $ matchingCount / toRational (length ws1)
   where ws1 = words s1
         ws2 = words s2
         matchingCount = toRational $ length $ filter snd $ map (matching ws2) ws1

@@ -12,7 +12,7 @@ fullURL :: String -> String
 fullURL = (++) "http://wiki.teamliquid.net"
 
 listTournaments :: IO (Maybe [Tournament])
-listTournaments = merge <$> (getTournaments Premier) <*> (getTournaments Standard)
+listTournaments = merge <$> getTournaments Premier <*> getTournaments Standard
 
 merge :: Maybe [Tournament] -> Maybe [Tournament] -> Maybe [Tournament]
 merge premierTournaments Nothing = premierTournaments
