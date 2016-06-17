@@ -116,7 +116,7 @@ promptIfRequired :: Client -> MethodReturn -> IO Success
 promptIfRequired client reply = do
   let result = methodReturnBody reply
   let promptPath = fromJust . fromVariant $ result !! 1
-  askPrompt client $ analyze (result!!0) promptPath
+  askPrompt client $ analyze (head result) promptPath
 
 unlockPasswords :: Client -> ObjectPath -> IO Success
 unlockPasswords client collection = do
@@ -131,7 +131,7 @@ askPrompt _       s@(Success _)               = return s
 askPrompt client pn@(PromptNeeded path) = do
   openPrompt client path
   callback <- waitPrompt client path
-  if (fromJust . fromVariant $ callback !! 0)
+  if fromJust . fromVariant $ head callback
   then putStrLn "Dismissed, aborting" >> return pn
   else putStrLn "Accepted" >> return (Success $ callback !! 1)
 
@@ -162,7 +162,7 @@ searchItems client filters = do
     { methodCallDestination = Just "org.freedesktop.secrets"
     , methodCallBody = [toVariant (M.fromList filters)]
     }
-  return $ fromJust $ fromVariant $ methodReturnBody reply !! 0
+  return $ fromJust $ fromVariant $ head (methodReturnBody reply)
 
 openSession :: Client -> IO ObjectPath
 openSession client = do
@@ -178,4 +178,4 @@ getSecrets client paths session = do
     { methodCallDestination = Just "org.freedesktop.secrets"
     , methodCallBody = [toVariant paths, toVariant session]
     }
-  return $ M.elems $ fromJust $ (fromVariant (methodReturnBody reply !! 0) :: Maybe (M.Map ObjectPath Secret))
+  return $ M.elems $ fromJust (fromVariant (head (methodReturnBody reply)) :: Maybe (M.Map ObjectPath Secret))

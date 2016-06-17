@@ -9,7 +9,7 @@ import PlaylistManager
 
 import Control.Monad      (forM_)
 import Data.List          (intercalate, groupBy, sortOn)
-import Data.Maybe         (catMaybes)
+import Data.Maybe         (mapMaybe)
 import System.Environment (getArgs)
 
 main :: IO ()
@@ -39,11 +39,11 @@ updateTournament :: (Tournament -> Playlist) -> SerieUpdate -> Client ()
 updateTournament playlists (tournament, videos) = do
   let playlist = playlists tournament
   printPlaylist playlist
-  liftIO.putStrLn $ "  " ++ (count videos)
+  liftIO.putStrLn $ "  " ++ count videos
   mapM_ (\(v, idx) -> insertVideo v idx playlist) videos
     where count []  = "no new video"
           count [_] = "1 new video"
-          count xs  = (show $ length xs) ++ " new videos"
+          count xs  = show (length xs) ++ " new videos"
           printPlaylist = liftIO.putStrLn.playlistTitle
 
 onlyNewVideos :: (Tournament -> Playlist) -> [Serie] -> Client [SerieUpdate]
@@ -68,11 +68,11 @@ lastTournaments count = foundTournaments <$> getDataset count
 foundTournaments :: Maybe Dataset -> [Serie]
 foundTournaments  Nothing       = []
 foundTournaments (Just dataset) = group tournamentsWithVideos
-  where tournamentsWithVideos = catMaybes $ map extractTournament matchings
+  where tournamentsWithVideos = mapMaybe extractTournament matchings
         matchings = computeMatchings dataset
         group ts = map (\tvs -> (fst . head $ tvs, map snd tvs)) $ groupBy (\p1 p2 -> fst p1 == fst p2) $ sortOn fst ts
-        extractTournament (v, (Perfect t)) = Just (t, v)
-        extractTournament  _               = Nothing
+        extractTournament (v, Perfect t) = Just (t, v)
+        extractTournament  _             = Nothing
 
 videosWithCasters :: Int -> Client ()
 videosWithCasters count = do
@@ -90,7 +90,7 @@ computeMatchings :: Dataset -> [(Video, Matching)]
 computeMatchings (tournaments, videos) = decorate (matchTournaments tournaments) videos
 
 printMatching :: (Video, Matching) -> IO ()
-printMatching (video, (Perfect tournament)) = do
+printMatching (video, Perfect tournament) = do
   putStr $ videoURL video
   putStr " -> "
   putStrLn $ tournamentURL tournament

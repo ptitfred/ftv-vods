@@ -16,5 +16,5 @@ findInsertPositions oldVideos videos =
     where newVideos = reverse $ videos \\ oldVideos
 
 findInsertPosition :: [Video] -> Video -> Position
-findInsertPosition vs v = length vs - (length $ dropWhile (`before` v) vs)
+findInsertPosition vs v = length vs - length (dropWhile (`before` v) vs)
   where v1 `before` v2 = videoPublishDate v1 < videoPublishDate v2

@@ -81,8 +81,7 @@ mkURL verb u ps = do
 
 fullURL :: URL -> URL
 fullURL url  | "http" `isPrefixOf` url = url
-fullURL path | otherwise =
-  "https://www.googleapis.com/youtube/v3" ++ path
+fullURL path = "https://www.googleapis.com/youtube/v3" ++ path
 
 delete :: URL -> Parameters -> Client Bool
 delete url parameters = do
@@ -176,7 +175,7 @@ askUserCredentials = do
   port <- liftIO $ randomRIO (32100, 32200)
   let url = oauthAuthorizeUrl port
   liftIO $ do
-    putStrLn $ "Your browser should have been open."
+    putStrLn "Your browser should have been open."
     putStrLn $ "If not, please open " ++ url
     openBrowser url
   oauthCredentials port
@@ -212,7 +211,7 @@ oauthRefresh  = do
       credentials <- RM.ask
       let body = [ ( "client_id"    , C.pack $ clientId credentials     )
                  , ( "client_secret", C.pack $ clientSecret credentials )
-                 , ( "refresh_token", C.pack $ refreshToken             )
+                 , ( "refresh_token", C.pack refreshToken               )
                  , ( "grant_type"   , "refresh_token"                   )
                  ]
       STM.put NoCredentials

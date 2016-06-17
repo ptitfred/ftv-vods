@@ -64,10 +64,9 @@ instance Eq Video where
   v1 == v2 = videoId v1 == videoId v2
 
 mkVideoDetails :: String -> YouTubeId -> String -> UTCTime -> Video
-mkVideoDetails title vid description publishDate =
-  Video title vid description casters url publishDate
-    where casters = extractCasters mainCasters description
-          url = "https://www.youtube.com/watch?v=" ++ vid
+mkVideoDetails title vid description = Video title vid description casters url
+  where casters = extractCasters mainCasters description
+        url = "https://www.youtube.com/watch?v=" ++ vid
 
 mainCasters :: [Caster]
 mainCasters = [ Caster "LuCiqNo"   []               Nothing
