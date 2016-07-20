@@ -7,6 +7,7 @@ import Model
 import YouTube
 import PlaylistManager
 
+import Control.Arrow      ((&&&))
 import Control.Monad      (forM_)
 import Data.List          (intercalate, groupBy, sortOn)
 import Data.Maybe         (mapMaybe)
@@ -70,7 +71,7 @@ foundTournaments  Nothing       = []
 foundTournaments (Just dataset) = group tournamentsWithVideos
   where tournamentsWithVideos = mapMaybe extractTournament matchings
         matchings = computeMatchings dataset
-        group ts = map (\tvs -> (fst . head $ tvs, map snd tvs)) $ groupBy (\p1 p2 -> fst p1 == fst p2) $ sortOn fst ts
+        group ts = map ((fst . head) &&& map snd) $ groupBy (\p1 p2 -> fst p1 == fst p2) $ sortOn fst ts
         extractTournament (v, Perfect t) = Just (t, v)
         extractTournament  _             = Nothing
 
