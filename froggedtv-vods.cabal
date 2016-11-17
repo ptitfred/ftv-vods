@@ -20,11 +20,11 @@ library
                      , Matcher
                      , Model
                      , PlaylistManager
-                     , Secrets
                      , YouTube
                      , GoogleAPIsClient
   other-modules:       GoogleAPIsClient.Client
                      , GoogleAPIsClient.Commons
+                     , GoogleAPIsClient.Secrets
                      , YouTube.Models
                      , YouTube.Services
   ghc-options:         -Wall -Werror

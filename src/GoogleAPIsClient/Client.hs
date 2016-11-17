@@ -20,8 +20,8 @@ module GoogleAPIsClient.Client
 
 import           Helpers
 import           Model                      (URL)
-import           Secrets
 import           GoogleAPIsClient.Commons
+import           GoogleAPIsClient.Secrets
 
 import           Control.Concurrent               (MVar, forkIO, newEmptyMVar, putMVar, takeMVar)
 import           Control.Exception                (throwIO)
