@@ -8,7 +8,7 @@ module GoogleAPIsClient
     , PageSize
     , Result(..)
     , runClient
-    , needsUserCredentials
+    , requireOAuth2
     , get
     , getMany
     , post

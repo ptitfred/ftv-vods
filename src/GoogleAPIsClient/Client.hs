@@ -9,7 +9,7 @@ module GoogleAPIsClient.Client
     , Result(..)
     , runClient
     , liftIO
-    , needsUserCredentials
+    , requireOAuth2
     , get
     , getMany
     , post
@@ -61,8 +61,8 @@ runClient endpoint client = do
   credentials <- getCredentials
   fst <$> STM.runStateT (RM.runReaderT client (endpoint, credentials)) NoCredentials
 
-needsUserCredentials :: Client ()
-needsUserCredentials = do
+requireOAuth2 :: Client ()
+requireOAuth2 = do
   credentials <- STM.get
   case credentials of
     NoCredentials -> getUserCredentials

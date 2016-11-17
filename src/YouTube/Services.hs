@@ -25,26 +25,26 @@ browseChannel cId count = unwrap <$> listChannelPlaylists cId count
 
 browseMyChannel :: Int -> Client [Playlist]
 browseMyChannel count = do
-  needsUserCredentials
+  requireOAuth2
   myChannel <- channelId <$> findMyChannel
   browseChannel myChannel count
 
 createPlaylist :: Tournament -> Client Playlist
 createPlaylist t = do
-  needsUserCredentials
+  requireOAuth2
   playlists <- browseMyChannel 1000
   findOrCreatePlaylist playlists t
 
 createPlaylists :: [Tournament] -> Client (Tournament -> Playlist)
 createPlaylists [] = return (M.empty M.!)
 createPlaylists ts = do
-  needsUserCredentials
+  requireOAuth2
   playlists <- browseMyChannel 1000
   findOrCreatePlaylists playlists ts
 
 deletePlaylist :: YouTubeId -> Client Bool
 deletePlaylist pId = do
-  needsUserCredentials
+  requireOAuth2
   delete "/playlists" [ ("id", pId) ]
 
 findChannel :: String -> Client Channel
@@ -56,7 +56,7 @@ findChannel name =
 
 insertVideo :: Video -> Int -> Playlist -> Client Success
 insertVideo v pos pl = do
-  needsUserCredentials
+  requireOAuth2
   post "/playlistItems" parameters body
     where parameters = [ ("part", "snippet") ]
           body = Just (PlaylistItem "" vId pId pos)
@@ -65,7 +65,7 @@ insertVideo v pos pl = do
 
 listPlaylist :: YouTubeId -> Int -> Client Videos
 listPlaylist pId count = do
-  needsUserCredentials
+  requireOAuth2
   listPlaylistVideosIds pId count >>= listVideos
     where listPlaylistVideosIds i c = extractVideosIds <$> listPlaylistContent i c
           extractVideosIds = map playlistItemVideoId . toList
