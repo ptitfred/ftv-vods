@@ -2,6 +2,7 @@
 
 module YouTube.Client
     ( Client
+    , Endpoint(..)
     , Page(..)
     , PageHandler
     , PageSize
@@ -24,7 +25,7 @@ import           YouTube.Commons
 import           Control.Concurrent               (MVar, forkIO, newEmptyMVar, putMVar, takeMVar)
 import           Control.Exception                (throwIO)
 import           Control.Monad                    (void)
-import qualified Control.Monad.Reader     as RM   (ReaderT, ask, runReaderT)
+import qualified Control.Monad.Reader     as RM   (ReaderT, ask, asks, runReaderT)
 import qualified Control.Monad.State      as STM  (StateT, get, put, runStateT)
 import           Control.Monad.IO.Class           (liftIO)
 import           Data.Aeson                       hiding (Result)
@@ -47,15 +48,19 @@ data Page = Page Token PageSize
 
 data Result a = Result Token a
 
+data Endpoint = Endpoint { baseUrl :: URL
+                         , scope   :: URL
+                         }
+
 type PageHandler m = Page -> Client (Result m)
-type Client = RM.ReaderT Credentials (STM.StateT UserCredentials IO)
+type Client = RM.ReaderT (Endpoint, Credentials) (STM.StateT UserCredentials IO)
 
 {- Functions -----------------------------------------------------------------}
 
-runClient :: Client a -> IO a
-runClient client = do
+runClient :: Endpoint -> Client a -> IO a
+runClient endpoint client = do
   credentials <- getCredentials
-  fst <$> STM.runStateT (RM.runReaderT client credentials) NoCredentials
+  fst <$> STM.runStateT (RM.runReaderT client (endpoint, credentials)) NoCredentials
 
 needsUserCredentials :: Client ()
 needsUserCredentials = do
@@ -76,12 +81,13 @@ postForm u ps payload = mkURL "POST" u ps >>= httpRoutine (setRequestBodyURLEnco
 
 mkURL :: String -> URL -> Parameters -> Client URL
 mkURL verb u ps = do
-  key <- apiKey <$> RM.ask
-  return $ mkUrl (verb ++ " " ++ fullURL u) (("key", key) : ps)
+  Endpoint base _ <- RM.asks fst
+  key <- apiKey <$> RM.asks snd
+  return $ mkUrl (verb ++ " " ++ fullURL base u) (("key", key) : ps)
 
-fullURL :: URL -> URL
-fullURL url  | "http" `isPrefixOf` url = url
-fullURL path = "https://www.googleapis.com/youtube/v3" ++ path
+fullURL :: URL -> URL -> URL
+fullURL _ url  | "http" `isPrefixOf` url = url
+fullURL base path = base ++ path
 
 delete :: URL -> Parameters -> Client Bool
 delete url parameters = do
@@ -208,7 +214,7 @@ oauthRefresh  = do
   case creds of
     UserCredentials _ (Token refreshToken) _ -> do
       liftIO $ putStrLn "Refreshing OAuth token"
-      credentials <- RM.ask
+      credentials <- RM.asks snd
       let body = [ ( "client_id"    , C.pack $ clientId credentials     )
                  , ( "client_secret", C.pack $ clientSecret credentials )
                  , ( "refresh_token", C.pack refreshToken               )
@@ -244,12 +250,12 @@ awaitCallback port authUrl =
 
 getOAuthUrl :: Int -> Client String
 getOAuthUrl port = do
-  credentials <- RM.ask
+  (endpoint, credentials) <- RM.ask
   return $ mkUrl "https://accounts.google.com/o/oauth2/v2/auth"
-    [ ( "response_type" , "code"                                    )
-    , ( "client_id"     , clientId credentials                      )
-    , ( "redirect_uri"  , baseURL port                              )
-    , ( "scope"         , "https://www.googleapis.com/auth/youtube" )
+    [ ( "response_type" , "code"               )
+    , ( "client_id"     , clientId credentials )
+    , ( "redirect_uri"  , baseURL port         )
+    , ( "scope"         , scope endpoint       )
     ]
 
 waitOAuth :: Port -> Client String
@@ -257,7 +263,7 @@ waitOAuth port = getOAuthUrl port >>= awaitCallback port
 
 requestToken :: Int -> String -> Client ()
 requestToken port personalToken = do
-  credentials <- RM.ask
+  credentials <- RM.asks snd
   STM.put NoCredentials
   creds <- post "https://www.googleapis.com/oauth2/v4/token"
     [ ( "code"          , personalToken            )

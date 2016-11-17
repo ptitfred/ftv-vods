@@ -14,13 +14,14 @@ module YouTube
     , listVideos
       -- Reexport Models
     , Channel(..)
+    , Endpoint(..)
     , Playlist(..)
     , Video(..)
     , Videos
     , YouTubeId
       -- Reexport Client utils
     , Client
-    , runClient
+    , runYouTubeClient
     , liftIO
     ) where
 
@@ -33,6 +34,12 @@ import YouTube.Models
 import Data.Foldable  (toList)
 import Data.List      (find, intercalate)
 import Data.Map  as M (empty, fromList, (!))
+
+runYouTubeClient :: Client a -> IO a
+runYouTubeClient = runClient youtube
+
+youtube :: Endpoint
+youtube = Endpoint "https://www.googleapis.com/youtube/v3" "https://www.googleapis.com/auth/youtube"
 
 browseChannel :: YouTubeId -> Int -> Client [Playlist]
 browseChannel cId count =

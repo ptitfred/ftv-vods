@@ -15,7 +15,7 @@ import Data.Maybe         (mapMaybe)
 import System.Environment (getArgs)
 
 main :: IO ()
-main = getArgs >>= runClient.dispatch
+main = getArgs >>= runYouTubeClient.dispatch
 
 dispatch :: [String] -> Client ()
 dispatch ("auto-pls": count : _) | present count = autoPlaylists     (read count)
