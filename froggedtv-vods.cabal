@@ -26,6 +26,7 @@ library
   other-modules:       GoogleAPIsClient.Client
                      , GoogleAPIsClient.Commons
                      , YouTube.Models
+                     , YouTube.Services
   ghc-options:         -Wall -Werror
   build-depends:       base >= 4.7 && < 5
                      , http-conduit
