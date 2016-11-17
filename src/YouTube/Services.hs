@@ -20,9 +20,8 @@ import Data.List        (find, intercalate)
 import Data.Map    as M (empty, fromList, (!))
 
 browseChannel :: YouTubeId -> Int -> Client [Playlist]
-browseChannel cId count =
-  unwrap <$> paginate (browseChannelHandler cId) count
-    where unwrap (Playlists playlists) = playlists
+browseChannel cId count = unwrap <$> listChannelPlaylists cId count
+  where unwrap (Playlists playlists) = playlists
 
 browseMyChannel :: Int -> Client [Playlist]
 browseMyChannel count = do
@@ -67,8 +66,16 @@ insertVideo v pos pl = do
 listPlaylist :: YouTubeId -> Int -> Client Videos
 listPlaylist pId count = do
   needsUserCredentials
-  ids <- map playlistItemVideoId . toList <$> paginate (listPlaylistHandler pId) count
-  listVideos ids
+  listPlaylistVideosIds pId count >>= listVideos
+    where listPlaylistVideosIds i c = extractVideosIds <$> listPlaylistContent i c
+          extractVideosIds = map playlistItemVideoId . toList
+
+listPlaylistContent :: YouTubeId -> PageSize -> Client PlaylistContent
+listPlaylistContent pId = getMany "/playlistItems" parameters
+    where part       = "contentDetails,snippet"
+          parameters = [ ("part"      , part)
+                       , ("playlistId", pId )
+                       ]
 
 listVideos :: [YouTubeId] -> Client Videos
 listVideos vIds = toList <$> listVideosBatch (take 50 vIds) (drop 50 vIds)
@@ -91,21 +98,12 @@ findMyChannel =
 firstChannel :: Items Channel -> Channel
 firstChannel (Items cs) = head cs
 
-browseChannelHandler :: YouTubeId -> PageHandler Playlists
-browseChannelHandler cId page =
-  get "/playlists" (withPage page parameters)
-    where part       = "contentDetails,snippet"
-          parameters = [ ("part"      , part)
-                       , ("channelId" , cId )
-                       ]
-
-listPlaylistHandler :: YouTubeId -> PageHandler PlaylistContent
-listPlaylistHandler pId page =
-  get "/playlistItems" (withPage page parameters)
-    where part       = "contentDetails,snippet"
-          parameters = [ ("part"      , part)
-                       , ("playlistId", pId )
-                       ]
+listChannelPlaylists :: YouTubeId -> PageSize -> Client Playlists
+listChannelPlaylists cId = getMany "/playlists" parameters
+  where part       = "contentDetails,snippet"
+        parameters = [ ("part"      , part)
+                     , ("channelId" , cId )
+                     ]
 
 findOrCreatePlaylists :: [Playlist] -> [Tournament] -> Client (Tournament -> Playlist)
 findOrCreatePlaylists _ []  = return (\_ -> error "no tournament")

@@ -11,11 +11,10 @@ module GoogleAPIsClient.Client
     , liftIO
     , needsUserCredentials
     , get
+    , getMany
     , post
     , postForm
     , delete
-    , paginate
-    , withPage
     ) where
 
 import           GoogleAPIsClient.Commons
@@ -71,6 +70,10 @@ needsUserCredentials = do
 
 get :: (FromJSON a) => URL -> Parameters -> Client a
 get u ps = mkURL "GET" u ps >>= httpRoutine id
+
+getMany :: (FromJSON a, Monoid a) => URL -> Parameters -> PageSize -> Client a
+getMany url parameters = paginate handler
+  where handler page = get url (withPage page parameters)
 
 post :: (ToJSON b, FromJSON a) => URL -> Parameters -> Maybe b -> Client a
 post u ps  Nothing    = mkURL "POST" u ps >>= httpRoutine id

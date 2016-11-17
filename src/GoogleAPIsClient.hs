@@ -10,11 +10,10 @@ module GoogleAPIsClient
     , runClient
     , needsUserCredentials
     , get
+    , getMany
     , post
     , postForm
     , delete
-    , paginate
-    , withPage
     -- Commons
     , Credentials(..)
     , Parameter
