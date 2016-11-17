@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module YouTube.Client
+module GoogleAPIsClient.Client
     ( Client
     , Endpoint(..)
     , Page(..)
@@ -15,12 +15,13 @@ module YouTube.Client
     , postForm
     , delete
     , paginate
+    , withPage
     ) where
 
 import           Helpers
 import           Model                      (URL)
 import           Secrets
-import           YouTube.Commons
+import           GoogleAPIsClient.Commons
 
 import           Control.Concurrent               (MVar, forkIO, newEmptyMVar, putMVar, takeMVar)
 import           Control.Exception                (throwIO)
@@ -102,6 +103,10 @@ paginate :: Monoid m => PageHandler m -> PageSize -> Client m
 paginate handler count = paginate' handler batches Empty
   where batches = batchBy maxBatchSize count
         maxBatchSize = 50 -- Set by YouTube API
+
+withPage :: Page -> Parameters -> Parameters
+withPage (Page token count) parameters =
+  ("pageToken" , show token) : ("maxResults", show count) : parameters
 
 getUserCredentials :: Client ()
 getUserCredentials = do

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module YouTube.Commons
+module GoogleAPIsClient.Commons
     ( Credentials(..)
     , Parameter
     , Parameters

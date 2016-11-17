@@ -7,12 +7,13 @@ import Model
 import YouTube
 import PlaylistManager
 
-import Control.Arrow      ((&&&))
-import Control.Monad      (forM_)
-import Data.Function      (on)
-import Data.List          (intercalate, groupBy, sortOn)
-import Data.Maybe         (mapMaybe)
-import System.Environment (getArgs)
+import Control.Arrow          ((&&&))
+import Control.Monad          (forM_)
+import Control.Monad.IO.Class (liftIO)
+import Data.Function          (on)
+import Data.List              (intercalate, groupBy, sortOn)
+import Data.Maybe             (mapMaybe)
+import System.Environment     (getArgs)
 
 main :: IO ()
 main = getArgs >>= runYouTubeClient.dispatch

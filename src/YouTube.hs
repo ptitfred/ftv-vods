@@ -22,14 +22,12 @@ module YouTube
       -- Reexport Client utils
     , Client
     , runYouTubeClient
-    , liftIO
     ) where
 
 import Helpers (hashURL)
 import Model (Tournament(..))
-import YouTube.Commons
-import YouTube.Client
 import YouTube.Models
+import GoogleAPIsClient
 
 import Data.Foldable  (toList)
 import Data.List      (find, intercalate)
@@ -130,10 +128,6 @@ listPlaylistHandler pId page =
           parameters = [ ("part"      , part)
                        , ("playlistId", pId )
                        ]
-
-withPage :: Page -> Parameters -> Parameters
-withPage (Page token count) parameters =
-  ("pageToken" , show token) : ("maxResults", show count) : parameters
 
 findOrCreatePlaylists :: [Playlist] -> [Tournament] -> Client (Tournament -> Playlist)
 findOrCreatePlaylists _ []  = return (\_ -> error "no tournament")
