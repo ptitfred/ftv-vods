@@ -6,21 +6,25 @@ module GoogleAPIsClient.Commons
     , Parameters
     , Token(..)
     , UserCredentials(..)
+    , URL
     , apiKey
     , clientId
     , clientSecret
     , getCredentials
     , noBody
     , mkUrl
+    , openBrowser
     ) where
 
-import Model (URL)
-
-import Data.Aeson hiding (object)
-import Data.Aeson.Types (typeMismatch)
-import Data.List (intercalate)
+import Control.Monad            (void)
+import Data.Aeson hiding        (object)
+import Data.Aeson.Types         (typeMismatch)
+import Data.List                (intercalate)
 import qualified Data.Text as T (unpack)
-import System.Environment (getEnv)
+import System.Environment       (getEnv)
+import System.Process           (createProcess, proc, StdStream(CreatePipe), std_out, std_err)
+
+type URL = String
 
 type Parameters = [Parameter]
 type Parameter = (String, String)
@@ -84,3 +88,9 @@ clientSecret (Credentials _ _ secret) = secret
 
 noBody :: Maybe ()
 noBody = Nothing
+
+openBrowser :: URL -> IO ()
+openBrowser url =
+  void $ createProcess (proc "xdg-open" [url]) { std_out = CreatePipe
+                                               , std_err = CreatePipe
+                                               }

@@ -18,8 +18,6 @@ module GoogleAPIsClient.Client
     , withPage
     ) where
 
-import           Helpers
-import           Model                      (URL)
 import           GoogleAPIsClient.Commons
 import           GoogleAPIsClient.Secrets
 
