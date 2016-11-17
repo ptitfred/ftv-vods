@@ -38,6 +38,7 @@ import           Network.HTTP.Simple
 import           Network.HTTP.Types.Status        (statusIsSuccessful)
 import qualified Network.Wai              as Wai
 import qualified Network.Wai.Handler.Warp as Warp
+import           System.Environment               (getEnv)
 import           System.Random                    (randomRIO)
 import qualified Web.Scotty               as S    (ActionM, get, param, redirect, scottyApp, html)
 
@@ -120,8 +121,10 @@ saveUserCredentials = do
   let refreshToken = C.pack $ show $ userRefreshToken creds
   liftIO $ do
     putStrLn "Saving user credentials"
-    void $ storePassword "FTV-CLI YouTube Access Token" accessToken accessTokenAttributes
-    void $ storePassword "FTV-CLI YouTube Refresh Token" refreshToken refreshTokenAttributes
+    appCode <- getEnv "APPLICATION_CODE"
+    appName <- getEnv "APPLICATION_NAME"
+    void $ storePassword (appName ++ " Access Token") accessToken (accessTokenAttributes appCode)
+    void $ storePassword (appName ++ " Refresh Token") refreshToken (refreshTokenAttributes appCode)
   return ()
 
 {- Implementation ------------------------------------------------------------}
@@ -191,17 +194,18 @@ askUserCredentials = do
 
 readCurrentUserCredentials :: IO (Maybe UserCredentials)
 readCurrentUserCredentials = do
-  accessToken  <- findPassword accessTokenAttributes
-  refreshToken <- findPassword [("application", "ftv-cli"), ("type", "refresh_token")]
+  appCode      <- getEnv "APPLICATION_CODE"
+  accessToken  <- findPassword (accessTokenAttributes appCode)
+  refreshToken <- findPassword [("application", appCode), ("type", "refresh_token")]
   return $ UserCredentials <$> (Token . C.unpack <$> accessToken)
                            <*> (Token . C.unpack <$> refreshToken)
                            <*> pure "Bearer"
 
-accessTokenAttributes :: Attributes
-accessTokenAttributes = [("application", "ftv-cli"), ("type", "access_token")]
+accessTokenAttributes :: String -> Attributes
+accessTokenAttributes appCode = [("application", appCode), ("type", "access_token")]
 
-refreshTokenAttributes :: Attributes
-refreshTokenAttributes = [("application", "ftv-cli"), ("type", "refresh_token")]
+refreshTokenAttributes :: String -> Attributes
+refreshTokenAttributes appCode = [("application", appCode), ("type", "refresh_token")]
 
 type Port = Int
 
