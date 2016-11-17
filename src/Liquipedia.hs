@@ -4,6 +4,7 @@ module Liquipedia
 
 import Model
 
+import Data.Function (on)
 import Data.List (deleteFirstsBy)
 import Data.RDF
 import qualified Data.Text as T
@@ -21,7 +22,7 @@ merge premierTournaments allTournaments = fuse <$> premierTournaments <*> allTou
 
 fuse :: [Tournament] -> [Tournament] -> [Tournament]
 fuse premiers alls = premiers ++ nonPremiers
-  where nonPremiers = deleteFirstsBy (\t1 t2 -> tournamentURL t1 == tournamentURL t2) alls premiers
+  where nonPremiers = deleteFirstsBy ((==) `on` tournamentURL) alls premiers
 
 getTournaments :: TournamentType -> IO (Maybe [Tournament])
 getTournaments t = readTournaments t <$> getRDF t

@@ -57,7 +57,7 @@ findParent ts t = fromMaybe t $ find (\t' -> tournamentURL t' == parentURL t) ts
 decorate :: (a -> b) -> [a] -> [(a, b)]
 decorate f = map (\x -> (x, f x))
 
-carry :: Ord a => [(a, b)] -> (a -> b)
+carry :: Ord a => [(a, b)] -> a -> b
 carry = (!) . fromList
 
 parent :: URL -> URL
