@@ -1,30 +1,29 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module YouTube.Client
+module GoogleAPIsClient.Client
     ( Client
+    , Endpoint(..)
     , Page(..)
     , PageHandler
     , PageSize
     , Result(..)
     , runClient
     , liftIO
-    , needsUserCredentials
+    , requireOAuth2
     , get
+    , getMany
     , post
     , postForm
     , delete
-    , paginate
     ) where
 
-import           Helpers
-import           Model                      (URL)
-import           Secrets
-import           YouTube.Commons
+import           GoogleAPIsClient.Commons
+import           GoogleAPIsClient.Secrets
 
 import           Control.Concurrent               (MVar, forkIO, newEmptyMVar, putMVar, takeMVar)
 import           Control.Exception                (throwIO)
 import           Control.Monad                    (void)
-import qualified Control.Monad.Reader     as RM   (ReaderT, ask, runReaderT)
+import qualified Control.Monad.Reader     as RM   (ReaderT, ask, asks, runReaderT)
 import qualified Control.Monad.State      as STM  (StateT, get, put, runStateT)
 import           Control.Monad.IO.Class           (liftIO)
 import           Data.Aeson                       hiding (Result)
@@ -38,6 +37,7 @@ import           Network.HTTP.Simple
 import           Network.HTTP.Types.Status        (statusIsSuccessful)
 import qualified Network.Wai              as Wai
 import qualified Network.Wai.Handler.Warp as Warp
+import           System.Environment               (getEnv)
 import           System.Random                    (randomRIO)
 import qualified Web.Scotty               as S    (ActionM, get, param, redirect, scottyApp, html)
 
@@ -47,18 +47,22 @@ data Page = Page Token PageSize
 
 data Result a = Result Token a
 
+data Endpoint = Endpoint { baseUrl :: URL
+                         , scope   :: URL
+                         }
+
 type PageHandler m = Page -> Client (Result m)
-type Client = RM.ReaderT Credentials (STM.StateT UserCredentials IO)
+type Client = RM.ReaderT (Endpoint, Credentials) (STM.StateT UserCredentials IO)
 
 {- Functions -----------------------------------------------------------------}
 
-runClient :: Client a -> IO a
-runClient client = do
+runClient :: Endpoint -> Client a -> IO a
+runClient endpoint client = do
   credentials <- getCredentials
-  fst <$> STM.runStateT (RM.runReaderT client credentials) NoCredentials
+  fst <$> STM.runStateT (RM.runReaderT client (endpoint, credentials)) NoCredentials
 
-needsUserCredentials :: Client ()
-needsUserCredentials = do
+requireOAuth2 :: Client ()
+requireOAuth2 = do
   credentials <- STM.get
   case credentials of
     NoCredentials -> getUserCredentials
@@ -66,6 +70,10 @@ needsUserCredentials = do
 
 get :: (FromJSON a) => URL -> Parameters -> Client a
 get u ps = mkURL "GET" u ps >>= httpRoutine id
+
+getMany :: (FromJSON a, Monoid a) => URL -> Parameters -> PageSize -> Client a
+getMany url parameters = paginate handler
+  where handler page = get url (withPage page parameters)
 
 post :: (ToJSON b, FromJSON a) => URL -> Parameters -> Maybe b -> Client a
 post u ps  Nothing    = mkURL "POST" u ps >>= httpRoutine id
@@ -76,12 +84,13 @@ postForm u ps payload = mkURL "POST" u ps >>= httpRoutine (setRequestBodyURLEnco
 
 mkURL :: String -> URL -> Parameters -> Client URL
 mkURL verb u ps = do
-  key <- apiKey <$> RM.ask
-  return $ mkUrl (verb ++ " " ++ fullURL u) (("key", key) : ps)
+  Endpoint base _ <- RM.asks fst
+  key <- apiKey <$> RM.asks snd
+  return $ mkUrl (verb ++ " " ++ fullURL base u) (("key", key) : ps)
 
-fullURL :: URL -> URL
-fullURL url  | "http" `isPrefixOf` url = url
-fullURL path = "https://www.googleapis.com/youtube/v3" ++ path
+fullURL :: URL -> URL -> URL
+fullURL _ url  | "http" `isPrefixOf` url = url
+fullURL base path = base ++ path
 
 delete :: URL -> Parameters -> Client Bool
 delete url parameters = do
@@ -97,6 +106,10 @@ paginate handler count = paginate' handler batches Empty
   where batches = batchBy maxBatchSize count
         maxBatchSize = 50 -- Set by YouTube API
 
+withPage :: Page -> Parameters -> Parameters
+withPage (Page token count) parameters =
+  ("pageToken" , show token) : ("maxResults", show count) : parameters
+
 getUserCredentials :: Client ()
 getUserCredentials = do
   currentCreds <- liftIO readCurrentUserCredentials
@@ -111,8 +124,10 @@ saveUserCredentials = do
   let refreshToken = C.pack $ show $ userRefreshToken creds
   liftIO $ do
     putStrLn "Saving user credentials"
-    void $ storePassword "FTV-CLI YouTube Access Token" accessToken accessTokenAttributes
-    void $ storePassword "FTV-CLI YouTube Refresh Token" refreshToken refreshTokenAttributes
+    appCode <- getEnv "APPLICATION_CODE"
+    appName <- getEnv "APPLICATION_NAME"
+    void $ storePassword (appName ++ " Access Token") accessToken (accessTokenAttributes appCode)
+    void $ storePassword (appName ++ " Refresh Token") refreshToken (refreshTokenAttributes appCode)
   return ()
 
 {- Implementation ------------------------------------------------------------}
@@ -182,17 +197,18 @@ askUserCredentials = do
 
 readCurrentUserCredentials :: IO (Maybe UserCredentials)
 readCurrentUserCredentials = do
-  accessToken  <- findPassword accessTokenAttributes
-  refreshToken <- findPassword [("application", "ftv-cli"), ("type", "refresh_token")]
+  appCode      <- getEnv "APPLICATION_CODE"
+  accessToken  <- findPassword (accessTokenAttributes appCode)
+  refreshToken <- findPassword [("application", appCode), ("type", "refresh_token")]
   return $ UserCredentials <$> (Token . C.unpack <$> accessToken)
                            <*> (Token . C.unpack <$> refreshToken)
                            <*> pure "Bearer"
 
-accessTokenAttributes :: Attributes
-accessTokenAttributes = [("application", "ftv-cli"), ("type", "access_token")]
+accessTokenAttributes :: String -> Attributes
+accessTokenAttributes appCode = [("application", appCode), ("type", "access_token")]
 
-refreshTokenAttributes :: Attributes
-refreshTokenAttributes = [("application", "ftv-cli"), ("type", "refresh_token")]
+refreshTokenAttributes :: String -> Attributes
+refreshTokenAttributes appCode = [("application", appCode), ("type", "refresh_token")]
 
 type Port = Int
 
@@ -208,7 +224,7 @@ oauthRefresh  = do
   case creds of
     UserCredentials _ (Token refreshToken) _ -> do
       liftIO $ putStrLn "Refreshing OAuth token"
-      credentials <- RM.ask
+      credentials <- RM.asks snd
       let body = [ ( "client_id"    , C.pack $ clientId credentials     )
                  , ( "client_secret", C.pack $ clientSecret credentials )
                  , ( "refresh_token", C.pack refreshToken               )
@@ -244,12 +260,12 @@ awaitCallback port authUrl =
 
 getOAuthUrl :: Int -> Client String
 getOAuthUrl port = do
-  credentials <- RM.ask
+  (endpoint, credentials) <- RM.ask
   return $ mkUrl "https://accounts.google.com/o/oauth2/v2/auth"
-    [ ( "response_type" , "code"                                    )
-    , ( "client_id"     , clientId credentials                      )
-    , ( "redirect_uri"  , baseURL port                              )
-    , ( "scope"         , "https://www.googleapis.com/auth/youtube" )
+    [ ( "response_type" , "code"               )
+    , ( "client_id"     , clientId credentials )
+    , ( "redirect_uri"  , baseURL port         )
+    , ( "scope"         , scope endpoint       )
     ]
 
 waitOAuth :: Port -> Client String
@@ -257,7 +273,7 @@ waitOAuth port = getOAuthUrl port >>= awaitCallback port
 
 requestToken :: Int -> String -> Client ()
 requestToken port personalToken = do
-  credentials <- RM.ask
+  credentials <- RM.asks snd
   STM.put NoCredentials
   creds <- post "https://www.googleapis.com/oauth2/v4/token"
     [ ( "code"          , personalToken            )

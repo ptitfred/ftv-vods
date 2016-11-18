@@ -10,6 +10,8 @@ You could set it in config.sh which is ignored by git.
 
 ```bash
 # In config.sh (those are fake ids obviously)
+export APPLICATION_CODE="ftv-cli"
+export APPLICATION_NAME="FTV-CLI YouTube"
 export API_KEY="My4PI-k3Y"
 export OAUTH_CLIENT_ID="1232451531-lzlkrjezlrkjzelehlkhnlkhlzekhflh.apps.googleusercontent.com"
 export OAUTH_CLIENT_SECRET="eoizeujzZLRTJzLETkeREAja"

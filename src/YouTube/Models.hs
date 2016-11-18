@@ -11,6 +11,7 @@ module YouTube.Models
     , Success(..)
     , Tags(..)
     , Video(..)
+    , Videos
     , YouTubeId
     ) where
 
@@ -62,6 +63,8 @@ instance FromJSON Video where
 
 instance Eq Video where
   v1 == v2 = videoId v1 == videoId v2
+
+type Videos = [Video]
 
 mkVideoDetails :: String -> YouTubeId -> String -> UTCTime -> Video
 mkVideoDetails title vid description = Video title vid description casters url

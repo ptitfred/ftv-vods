@@ -23,7 +23,7 @@ Retrieve passwords:
 > Just password <- findPassword filters
 
 -}
-module Secrets
+module GoogleAPIsClient.Secrets
     (
     -- * Types
       Attributes
